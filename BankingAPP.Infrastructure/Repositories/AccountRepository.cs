@@ -37,6 +37,12 @@ namespace BankingAPP.Infrastructure.Repositories
                 .Include(a => a.Transactions)
                 .FirstOrDefaultAsync(a => a.Id == accountId, cancellationToken);
         }
+
+        public async Task<Account?> GetAccountByNumberAsync(string accountNumber)
+        {
+            return await _context.Accounts.FirstOrDefaultAsync(a => a.AccountNumber == accountNumber);
+        }
+
     }
 
 }

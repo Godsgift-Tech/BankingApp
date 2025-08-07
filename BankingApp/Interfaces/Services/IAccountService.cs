@@ -1,4 +1,5 @@
 ﻿using BankingApp.Application.DTO.Accounts;
+using BankingApp.Core.Entities;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -11,5 +12,7 @@ namespace BankingApp.Application.Interfaces.Services
     {
         Task<Guid> CreateAccountAsync(CreateAccountDto dto, CancellationToken cancellationToken);
         Task<AccountDto?> GetAccountByIdAsync(Guid accountId, CancellationToken cancellationToken);
+        Task<Account?> GetAccountByNumberAsync(string accountNumber);
+
     }
 }

@@ -10,131 +10,150 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using Serilog;
+using StackExchange.Redis;
 using System.Text;
-var builder = WebApplication.CreateBuilder(args);
 
-// Add Database Context
-var configuration = builder.Configuration;
-Console.WriteLine("Connection string in use: " + configuration.GetConnectionString("DefaultConnection"));
+Log.Logger = new LoggerConfiguration()
+    .WriteTo.Console()
+    .WriteTo.File("Logs/log.txt", rollingInterval: RollingInterval.Day)
+    //.WriteTo.Seq("http://localhost:5341") // optional SEQ support
+    .Enrich.FromLogContext()
+    .MinimumLevel.Information()
+    .CreateLogger();
 
-builder.Services.AddDbContext<BankingDbContext>(options =>
-    options.UseSqlServer(configuration.GetConnectionString("DefaultConnection")));
-
-// Add Identity
-builder.Services.AddIdentity<ApplicationUser, IdentityRole>()
-    .AddEntityFrameworkStores<BankingDbContext>()
-    .AddDefaultTokenProviders();
-
-// Add services to the container
-
-builder.Services.AddScoped<IAccountRepository, AccountRepository>();
-builder.Services.AddScoped<IAccountService, AccountService>();
-builder.Services.AddScoped<ITransactionRepository, TransactionRepository>();
-builder.Services.AddScoped<ITransactionService, TransactionService>();
-builder.Services.AddScoped<IExportService, ExportService>();
-
-
-builder.Services.AddControllers();
-builder.Services.AddEndpointsApiExplorer();
-
-// Swagger / OpenAPI
-//builder.Services.AddOpenApi();
-builder.Services.AddSwaggerGen(options =>
+try
 {
-    options.SwaggerDoc("v1", new OpenApiInfo
+    Log.Information("Starting BankingApp API...");
+
+    var builder = WebApplication.CreateBuilder(args);
+    builder.Host.UseSerilog();
+
+    var configuration = builder.Configuration;
+    Console.WriteLine("Connection string in use: " + configuration.GetConnectionString("DefaultConnection"));
+
+    // Database
+    builder.Services.AddDbContext<BankingDbContext>(options =>
+        options.UseSqlServer(configuration.GetConnectionString("DefaultConnection")));
+
+    // Redis Caching
+    builder.Services.AddStackExchangeRedisCache(options =>
     {
-        Title = "Banking App API",
-        Version = "v1"
+        options.Configuration = builder.Configuration.GetConnectionString("Redis");
     });
 
-    // JWT Authentication to Swagger
-    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
     {
-        Name = "Authorization",
-        Type = SecuritySchemeType.Http,
-        Scheme = "Bearer",
-        BearerFormat = "JWT",
-        In = ParameterLocation.Header,
-        Description = "Enter: **Bearer {your JWT token}**"
+        var redisConfig = builder.Configuration.GetConnectionString("Redis");
+        return ConnectionMultiplexer.Connect(redisConfig!);
     });
 
-    options.AddSecurityRequirement(new OpenApiSecurityRequirement
+    // Identity
+    builder.Services.AddIdentity<ApplicationUser, IdentityRole>()
+        .AddEntityFrameworkStores<BankingDbContext>()
+        .AddDefaultTokenProviders();
+
+    // Dependency Injection
+    builder.Services.AddScoped<IAccountRepository, AccountRepository>();
+    builder.Services.AddScoped<IAccountService, AccountService>();
+    builder.Services.AddScoped<ITransactionRepository, TransactionRepository>();
+    builder.Services.AddScoped<ITransactionService, TransactionService>();
+    builder.Services.AddScoped<IExportService, ExportService>();
+
+    builder.Services.AddControllers();
+    builder.Services.AddEndpointsApiExplorer();
+
+    // Swagger + JWT Auth
+    builder.Services.AddSwaggerGen(options =>
     {
+        options.SwaggerDoc("v1", new OpenApiInfo
         {
-            new OpenApiSecurityScheme
+            Title = "Banking App API",
+            Version = "v1"
+        });
+
+        options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+        {
+            Name = "Authorization",
+            Type = SecuritySchemeType.Http,
+            Scheme = "Bearer",
+            BearerFormat = "JWT",
+            In = ParameterLocation.Header,
+            Description = "Enter: **Bearer {your JWT token}**"
+        });
+
+        options.AddSecurityRequirement(new OpenApiSecurityRequirement
+        {
             {
-                Reference = new OpenApiReference
+                new OpenApiSecurityScheme
                 {
-                    Type = ReferenceType.SecurityScheme,
-                    Id = "Bearer"
-                }
-            },
-            Array.Empty<string>()
-        }
+                    Reference = new OpenApiReference
+                    {
+                        Type = ReferenceType.SecurityScheme,
+                        Id = "Bearer"
+                    }
+                },
+                Array.Empty<string>()
+            }
+        });
     });
-});
 
-
-
-builder.Services.AddAuthentication(options =>
-{
-    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-})
-.AddJwtBearer(options =>
-{
-    options.RequireHttpsMetadata = false;
-    options.SaveToken = true;
-    options.TokenValidationParameters = new TokenValidationParameters
+    // JWT Auth
+    builder.Services.AddAuthentication(options =>
     {
-        ValidateIssuer = true,
-        ValidateAudience = true,
-        ValidateLifetime = true,
-        ValidateIssuerSigningKey = true,
-        ClockSkew = TimeSpan.FromMinutes(5),
-        ValidIssuer = configuration["Jwt:Issuer"],
-        ValidAudience = configuration["Jwt:Audience"],
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(configuration["Jwt:Key"]!))
-    };
-});
+        options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+        options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+    })
+    .AddJwtBearer(options =>
+    {
+        options.RequireHttpsMetadata = false;
+        options.SaveToken = true;
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ClockSkew = TimeSpan.FromMinutes(5),
+            ValidIssuer = configuration["Jwt:Issuer"],
+            ValidAudience = configuration["Jwt:Audience"],
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(configuration["Jwt:Key"]!))
+        };
+    });
 
-builder.Services.AddAuthorization();
+    builder.Services.AddAuthorization();
 
+    var app = builder.Build();
 
-var app = builder.Build();
+    // 🔹 Seed Roles
+    using (var scope = app.Services.CreateScope())
+    {
+        var services = scope.ServiceProvider;
+        await RoleSeeder.SeedRolesAsync(services);
+    }
 
-// 🔹 Seed roles after app is built
-using (var scope = app.Services.CreateScope())
-{
-    var services = scope.ServiceProvider;
-    await RoleSeeder.SeedRolesAsync(services);
+    // 🔹 Middleware
+    if (app.Environment.IsDevelopment())
+    {
+        app.UseSwagger();
+        app.UseSwaggerUI();
+    }
+
+    app.UseHttpsRedirection();
+    app.UseRouting();
+
+    app.UseAuthentication();
+    app.UseAuthorization();
+
+    app.MapControllers();
+
+    app.Run();
 }
-
-// ... rest of your code ...
-
-// Swagger / OpenAPI
-builder.Services.AddEndpointsApiExplorer(); // Add this line before AddOpenApi()
-builder.Services.AddSwaggerGen(); // Add this line before AddOpenApi()
-
-
-// ... rest of your code ...
-
-// Configure the HTTP request pipeline
-if (app.Environment.IsDevelopment())
+catch (Exception ex)
 {
-    app.UseSwagger(); // This now works because AddSwaggerGen() is called above
-    app.UseSwaggerUI();
+    Log.Fatal(ex, "Application startup failed");
 }
-
-
-app.UseHttpsRedirection();
-app.UseRouting();
-
-
-app.UseAuthentication();
-app.UseAuthorization();
-
-
-app.MapControllers();
-
-app.Run();
+finally
+{
+    Log.CloseAndFlush();
+}

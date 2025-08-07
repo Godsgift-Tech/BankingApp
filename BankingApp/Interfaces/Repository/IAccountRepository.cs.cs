@@ -12,6 +12,8 @@ namespace BankingApp.Application.Interfaces.Repository
         Task<bool> AccountNumberExistsAsync(string accountNumber, CancellationToken cancellationToken);
         Task<Guid> CreateAccountAsync(Account account, CancellationToken cancellationToken);
         Task<Account?> GetAccountByIdAsync(Guid accountId, CancellationToken cancellationToken);
+        Task<Account?> GetAccountByNumberAsync(string accountNumber);
+
 
     }
 }
