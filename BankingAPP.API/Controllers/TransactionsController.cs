@@ -1,5 +1,6 @@
 ﻿using BankingApp.Application.DTO.Transactions;
 using BankingApp.Application.Interfaces.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
@@ -13,10 +14,12 @@ namespace BankingAPP.API.Controllers
     public class TransactionsController : ControllerBase
     {
         private readonly ITransactionService _transactionService;
+        private readonly IExportService _exportService;
 
-        public TransactionsController(ITransactionService transactionService)
+        public TransactionsController(ITransactionService transactionService, IExportService exportService)
         {
             _transactionService = transactionService;
+            _exportService = exportService;
         }
 
         [HttpPost("deposit")]
@@ -40,6 +43,7 @@ namespace BankingAPP.API.Controllers
             return Ok("Transfer successful");
         }
 
+        [Authorize]
         [HttpGet("account/{accountId}")]
         public async Task<IActionResult> GetTransactionHistory(
       Guid accountId,
@@ -55,6 +59,56 @@ namespace BankingAPP.API.Controllers
             return Ok(result);
         }
 
+
+        /// <summary>
+        /// Export transactions to PDF.
+        /// </summary>
+        /// 
+        [Authorize(Roles = "Admin")]
+        [HttpGet("export/pdf/{accountId}")]
+        public async Task<IActionResult> ExportToPdf(
+            Guid accountId,
+            [FromQuery] DateTime? fromDate,
+            [FromQuery] DateTime? toDate,
+            CancellationToken cancellationToken)
+        {
+            var transactions = await _transactionService.GetTransactionHistoryAsync(
+                accountId,
+                pageNumber: 1,
+                pageSize: int.MaxValue,
+                fromDate,
+                toDate,
+                cancellationToken
+            );
+
+            var pdfFile = _exportService.ExportTransactionsToPdf(transactions.Items);
+            return File(pdfFile, "application/pdf", "transaction-history.pdf");
+        }
+
+        /// <summary>
+        /// Export transactions to Excel (.xlsx)
+        /// </summary>
+        [HttpGet("export/excel/{accountId}")]
+        public async Task<IActionResult> ExportToExcel(
+            Guid accountId,
+            [FromQuery] DateTime? fromDate,
+            [FromQuery] DateTime? toDate,
+            CancellationToken cancellationToken)
+        {
+            var transactions = await _transactionService.GetTransactionHistoryAsync(
+                accountId,
+                pageNumber: 1,
+                pageSize: int.MaxValue,
+                fromDate,
+                toDate,
+                cancellationToken
+            );
+
+            var excelFile = _exportService.ExportTransactionsToExcel(transactions.Items);
+            return File(excelFile,
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        "transaction-history.xlsx");
+        }
     }
 
 

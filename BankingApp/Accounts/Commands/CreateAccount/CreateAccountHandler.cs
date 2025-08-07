@@ -1,4 +1,5 @@
-﻿using BankingApp.Core.Entities;
+﻿using BankingApp.Application.Interfaces.Repository;
+using BankingApp.Core.Entities;
 using MediatR;
 using System;
 using System.Collections.Generic;
@@ -11,20 +12,16 @@ namespace BankingApp.Application.Accounts.Commands.CreateAccount
 
     public class CreateAccountHandler : IRequestHandler<CreateAccountCommand, Guid>
     {
-        private readonly BankingDbContext _context;
+        private readonly IAccountRepository _repository;
 
-        public CreateAccountHandler(BankingDbContext context)
+        public CreateAccountHandler(IAccountRepository repository)
         {
-            _context = context;
+            _repository = repository;
         }
 
         public async Task<Guid> Handle(CreateAccountCommand request, CancellationToken cancellationToken)
         {
-            // Check if account number already exists
-            bool exists = await _context.Accounts
-                .AnyAsync(a => a.AccountNumber == request.AccountNumber, cancellationToken);
-
-            if (exists)
+            if (await _repository.AccountNumberExistsAsync(request.AccountNumber, cancellationToken))
                 throw new Exception("Account number already exists.");
 
             var account = new Account
@@ -35,12 +32,10 @@ namespace BankingApp.Application.Accounts.Commands.CreateAccount
                 CreatedAt = DateTime.UtcNow
             };
 
-            _context.Accounts.Add(account);
-            await _context.SaveChangesAsync(cancellationToken);
-
-            return account.Id;
+            return await _repository.CreateAccountAsync(account, cancellationToken);
         }
     }
+
 
 
 }

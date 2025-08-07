@@ -9,7 +9,13 @@ namespace BankingApp.Application.Interfaces.Services
         Task WithdrawAsync(WithdrawDto dto);
         Task TransferAsync(TransferDto dto);
         Task<PagedResult<TransactionHistoryDto>> GetTransactionHistoryAsync(
-    Guid accountId, int page, int pageSize, DateTime? fromDate, DateTime? toDate, CancellationToken cancellationToken);
+       Guid accountId,
+       int pageNumber,
+       int pageSize,
+       DateTime? fromDate,
+       DateTime? toDate,
+       CancellationToken cancellationToken
+   );
 
 
 

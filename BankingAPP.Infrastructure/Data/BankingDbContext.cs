@@ -1,5 +1,5 @@
 ﻿using BankingApp.Core.Entities;
-using Microsoft.AspNetCore.Identity.EntityFrameworkCore; 
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
 namespace BankingAPP.Infrastructure.Data
@@ -16,6 +16,7 @@ namespace BankingAPP.Infrastructure.Data
         {
             base.OnModelCreating(builder);
 
+            // Account Configuration
             builder.Entity<Account>()
                 .HasIndex(a => a.AccountNumber)
                 .IsUnique();
@@ -26,11 +27,21 @@ namespace BankingAPP.Infrastructure.Data
                 .HasForeignKey(a => a.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
 
+            // Transaction Configuration
             builder.Entity<Transaction>()
                 .HasOne(t => t.Account)
                 .WithMany(a => a.Transactions)
                 .HasForeignKey(t => t.AccountId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            // Optional: Enum conversion for TransactionType and Status (if using EF Core 5+)
+            builder.Entity<Transaction>()
+                .Property(t => t.Type)
+                .HasConversion<string>(); // saves enum as string
+
+            builder.Entity<Transaction>()
+                .Property(t => t.Status)
+                .HasConversion<string>(); // saves enum as string
         }
     }
 }
