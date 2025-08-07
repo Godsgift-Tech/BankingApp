@@ -1,6 +1,10 @@
-﻿using BankingApp.Core.Entities;
+﻿using BankingApp.Application.Interfaces.Repository;
+using BankingApp.Application.Interfaces.Services;
+using BankingApp.Application.Services;
+using BankingApp.Core.Entities;
 using BankingAPP.Infrastructure.Data;
 using BankingAPP.Infrastructure.Identity;
+using BankingAPP.Infrastructure.Repositories;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -21,6 +25,12 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>()
     .AddDefaultTokenProviders();
 
 // Add services to the container
+
+builder.Services.AddScoped<IAccountRepository, AccountRepository>();
+builder.Services.AddScoped<IAccountService, AccountService>();
+builder.Services.AddScoped<ITransactionRepository, TransactionRepository>();
+builder.Services.AddScoped<ITransactionService, TransactionService>();
+
 builder.Services.AddControllers();
 
 // Swagger / OpenAPI
