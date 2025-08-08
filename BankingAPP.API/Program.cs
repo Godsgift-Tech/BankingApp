@@ -11,7 +11,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Serilog;
-using StackExchange.Redis;
 using System.Text;
 
 Log.Logger = new LoggerConfiguration()
@@ -35,18 +34,6 @@ try
     // Database
     builder.Services.AddDbContext<BankingDbContext>(options =>
         options.UseSqlServer(configuration.GetConnectionString("DefaultConnection")));
-
-    // ✅ Redis Caching - Required for AccountService & TransactionService
-    builder.Services.AddStackExchangeRedisCache(options =>
-    {
-        options.Configuration = builder.Configuration.GetConnectionString("Redis");
-    });
-
-    builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
-    {
-        var redisConfig = builder.Configuration.GetConnectionString("Redis");
-        return ConnectionMultiplexer.Connect(redisConfig!);
-    });
 
     // Identity
     builder.Services.AddIdentity<ApplicationUser, IdentityRole>()
@@ -125,11 +112,21 @@ try
 
     var app = builder.Build();
 
-    //  Middleware
-    app.UseSwagger();
-    app.UseSwaggerUI();
+    // Seed roles before the app starts handling requests
+    using (var scope = app.Services.CreateScope())
+    {
+        var services = scope.ServiceProvider;
+        await RoleSeeder.SeedRolesAsync(services);
+    }
 
-    // Disabled HTTPS redirection for now so Swagger runs without certificate issues
+    // Middleware
+    if (app.Environment.IsDevelopment())
+    {
+        app.UseSwagger();
+        app.UseSwaggerUI();
+    }
+
+    // Optional: disable HTTPS redirection for now to avoid certificate issues
     // app.UseHttpsRedirection();
 
     app.UseRouting();
@@ -139,6 +136,9 @@ try
     app.UseAuthorization();
 
     app.MapControllers();
+
+    // Redirect root URL to Swagger without showing in Swagger docs
+    app.MapGet("/", () => Results.Redirect("/swagger")).ExcludeFromDescription();
 
     app.Run();
 }

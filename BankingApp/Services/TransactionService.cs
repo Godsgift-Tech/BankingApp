@@ -4,27 +4,17 @@ using BankingApp.Application.Interfaces.Repository;
 using BankingApp.Application.Interfaces.Services;
 using BankingApp.Core.Entities;
 using BankingApp.Core.Enums;
-using Microsoft.Extensions.Caching.Distributed;
 using Serilog;
-using StackExchange.Redis;
-using System.Text.Json;
 
 namespace BankingApp.Application.Services
 {
     public class TransactionService : ITransactionService
     {
         private readonly ITransactionRepository _transactionRepository;
-        private readonly IDistributedCache _cache;
-        private readonly IConnectionMultiplexer _redis;
 
-        public TransactionService(
-            ITransactionRepository transactionRepository,
-            IDistributedCache cache,
-            IConnectionMultiplexer redis)
+        public TransactionService(ITransactionRepository transactionRepository)
         {
             _transactionRepository = transactionRepository;
-            _cache = cache;
-            _redis = redis;
         }
 
         public async Task DepositAsync(DepositDto dto)
@@ -54,8 +44,6 @@ namespace BankingApp.Application.Services
             await _transactionRepository.SaveChangesAsync();
 
             Log.Information("Deposit successful: AccountId={AccountId}, NewBalance={Balance}", dto.AccountId, account.Balance);
-
-            await InvalidateTransactionHistoryCache(dto.AccountId);
         }
 
         public async Task WithdrawAsync(WithdrawDto dto)
@@ -92,8 +80,6 @@ namespace BankingApp.Application.Services
             await _transactionRepository.SaveChangesAsync();
 
             Log.Information("Withdrawal successful: AccountId={AccountId}, NewBalance={Balance}", dto.AccountId, account.Balance);
-
-            await InvalidateTransactionHistoryCache(dto.AccountId);
         }
 
         public async Task TransferAsync(TransferDto dto)
@@ -147,28 +133,17 @@ namespace BankingApp.Application.Services
             await _transactionRepository.SaveChangesAsync();
 
             Log.Information("Transfer successful: From={FromAccountId}, To={ToAccountId}, Amount={Amount}", fromAccount.Id, toAccount.Id, dto.Amount);
-
-            await InvalidateTransactionHistoryCache(fromAccount.Id);
-            await InvalidateTransactionHistoryCache(toAccount.Id);
         }
 
         public async Task<PagedResult<TransactionHistoryDto>> GetTransactionHistoryAsync(
             Guid accountId, int page, int pageSize, DateTime? fromDate, DateTime? toDate, CancellationToken cancellationToken)
         {
-            string cacheKey = $"transactions:{accountId}:{page}:{pageSize}:{fromDate?.ToString("s")}:{toDate?.ToString("s")}";
             Log.Information("Retrieving transaction history for AccountId={AccountId}, Page={Page}", accountId, page);
-
-            var cachedData = await _cache.GetStringAsync(cacheKey, cancellationToken);
-            if (!string.IsNullOrEmpty(cachedData))
-            {
-                Log.Information("Transaction history cache hit for AccountId={AccountId}, Page={Page}", accountId, page);
-                return JsonSerializer.Deserialize<PagedResult<TransactionHistoryDto>>(cachedData)!;
-            }
 
             var (transactions, totalCount) = await _transactionRepository.GetPagedTransactionsByAccountIdAsync(
                 accountId, page, pageSize, fromDate, toDate, cancellationToken);
 
-            var result = new PagedResult<TransactionHistoryDto>
+            return new PagedResult<TransactionHistoryDto>
             {
                 Page = page,
                 PageSize = pageSize,
@@ -184,45 +159,6 @@ namespace BankingApp.Application.Services
                     TargetAccountNumber = t.TargetAccountNumber
                 }).ToList()
             };
-
-            var options = new DistributedCacheEntryOptions
-            {
-                AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5)
-            };
-
-            var json = JsonSerializer.Serialize(result);
-            await _cache.SetStringAsync(cacheKey, json, options, cancellationToken);
-
-            Log.Information("Transaction history retrieved and cached. AccountId={AccountId}, Page={Page}", accountId, page);
-
-            return result;
-        }
-
-        private async Task InvalidateTransactionHistoryCache(Guid accountId)
-        {
-            try
-            {
-                var server = _redis.GetServer(_redis.GetEndPoints().First());
-                var db = _redis.GetDatabase();
-                var pattern = $"transactions:{accountId}*";
-
-                var keys = server.Keys(pattern: pattern).ToArray();
-
-                foreach (var key in keys)
-                {
-                    await db.KeyDeleteAsync(key);
-                    Log.Information("Deleted transaction cache key: {Key}", key);
-                }
-
-                if (keys.Length == 0)
-                {
-                    Log.Information("No transaction cache keys found to delete for AccountId={AccountId}", accountId);
-                }
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Failed to invalidate transaction cache for AccountId={AccountId}", accountId);
-            }
         }
     }
 }

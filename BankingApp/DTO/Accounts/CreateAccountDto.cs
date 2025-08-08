@@ -8,7 +8,8 @@ namespace BankingApp.Application.DTO.Accounts
 {
     public class CreateAccountDto
     {
-        public string UserId { get; set; } = default!;
-        public string AccountNumber { get; set; } = default!;
+        public string AccountType { get; set; } = default!;
+        public string Currency { get; set; } = "NGN"; // default to Naira
     }
+
 }

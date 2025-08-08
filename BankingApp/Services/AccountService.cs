@@ -2,9 +2,7 @@
 using BankingApp.Application.Interfaces.Repository;
 using BankingApp.Application.Interfaces.Services;
 using BankingApp.Core.Entities;
-using Microsoft.Extensions.Caching.Distributed;
 using Serilog;
-using StackExchange.Redis;
 using System.Text.Json;
 
 namespace BankingApp.Application.Services
@@ -12,17 +10,10 @@ namespace BankingApp.Application.Services
     public class AccountService : IAccountService
     {
         private readonly IAccountRepository _accountRepository;
-        private readonly IDistributedCache _cache;
-        private readonly IConnectionMultiplexer _redis;
 
-        public AccountService(
-            IAccountRepository accountRepository,
-            IDistributedCache cache,
-            IConnectionMultiplexer redis)
+        public AccountService(IAccountRepository accountRepository)
         {
             _accountRepository = accountRepository;
-            _cache = cache;
-            _redis = redis;
         }
 
         public async Task<Guid> CreateAccountAsync(CreateAccountDto dto, CancellationToken cancellationToken)
@@ -44,95 +35,38 @@ namespace BankingApp.Application.Services
 
             var accountId = await _accountRepository.CreateAccountAsync(account, cancellationToken);
 
-            var accountDto = new AccountDto
-            {
-                Id = accountId,
-                AccountNumber = dto.AccountNumber,
-                Balance = 0m,
-                CreatedAt = account.CreatedAt
-            };
+            Log.Information("Account created successfully. AccountId: {AccountId}", accountId);
 
-            var cacheKey = $"account:{accountId}";
-            var cacheOptions = new DistributedCacheEntryOptions
-            {
-                AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10)
-            };
-
-            var serialized = JsonSerializer.Serialize(accountDto);
-            await _cache.SetStringAsync(cacheKey, serialized, cacheOptions);
-
-            Log.Information("Account created and cached successfully. AccountId: {AccountId}", accountId);
-
-            await InvalidateAccountCache(account.Id);
+            // No Redis cache to invalidate
+            Log.Information("Cache invalidation skipped (Redis removed).");
 
             return accountId;
         }
 
         public async Task<AccountDto?> GetAccountByIdAsync(Guid accountId, CancellationToken cancellationToken)
         {
-            var cacheKey = $"account:{accountId}";
-            Log.Information("Fetching account from cache. Key: {CacheKey}", cacheKey);
+            Log.Information("Fetching account from DB. AccountId: {AccountId}", accountId);
 
-            var cached = await _cache.GetStringAsync(cacheKey, cancellationToken);
-            if (!string.IsNullOrEmpty(cached))
-            {
-                Log.Information("Cache hit for AccountId: {AccountId}", accountId);
-                return JsonSerializer.Deserialize<AccountDto>(cached);
-            }
-
-            Log.Information("Cache miss for AccountId: {AccountId}. Fetching from DB...", accountId);
             var account = await _accountRepository.GetAccountByIdAsync(accountId, cancellationToken);
             if (account == null)
             {
-                Log.Warning("Account not found in DB. AccountId: {AccountId}", accountId);
+                Log.Warning("Account not found. AccountId: {AccountId}", accountId);
                 return null;
             }
 
-            var accountDto = new AccountDto
+            return new AccountDto
             {
                 Id = account.Id,
                 AccountNumber = account.AccountNumber,
                 Balance = account.Balance,
                 CreatedAt = account.CreatedAt
             };
-
-            var options = new DistributedCacheEntryOptions
-            {
-                AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10)
-            };
-
-            var json = JsonSerializer.Serialize(accountDto);
-            await _cache.SetStringAsync(cacheKey, json, options, cancellationToken);
-
-            Log.Information("Account data cached after DB retrieval. AccountId: {AccountId}", accountId);
-
-            return accountDto;
         }
 
         public async Task<Account?> GetAccountByNumberAsync(string accountNumber)
         {
             Log.Information("Fetching account by AccountNumber: {AccountNumber}", accountNumber);
             return await _accountRepository.GetAccountByNumberAsync(accountNumber);
-        }
-
-        private async Task InvalidateAccountCache(Guid accountId)
-        {
-            var server = _redis.GetServer(_redis.GetEndPoints().First());
-            var db = _redis.GetDatabase();
-
-            var pattern = $"account:{accountId}*";
-            var keys = server.Keys(pattern: pattern).ToArray();
-
-            foreach (var key in keys)
-            {
-                await db.KeyDeleteAsync(key);
-                Log.Information("Deleted stale cache key: {Key}", key);
-            }
-
-            if (keys.Length == 0)
-            {
-                Log.Information("No stale cache keys found for AccountId: {AccountId}", accountId);
-            }
         }
     }
 }
