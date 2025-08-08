@@ -4,8 +4,10 @@
     "http": {
       "commandName": "Project",
       "dotnetRunMessages": true,
-      "launchBrowser": false,
-      "applicationUrl": "http://localhost:5137",
+      "launchBrowser": true,
+      //"applicationUrl": "http://localhost:5137",
+      "applicationUrl": "http://localhost:5138",
+
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"
       }
@@ -13,11 +15,27 @@
     "https": {
       "commandName": "Project",
       "dotnetRunMessages": true,
-      "launchBrowser": false,
-      "applicationUrl": "https://localhost:7010;http://localhost:5137",
+      "launchBrowser": true,
+      "applicationUrl": "https://localhost:7025;http://localhost:5138",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"
       }
     }
   }
 }
+
+//{
+//  "$schema": "https://json.schemastore.org/launchsettings.json",
+//  "profiles": {
+//    "BankingAPP.API": {
+//      "commandName": "Project",
+//      "dotnetRunMessages": true,
+//      "launchBrowser": true,
+//      "applicationUrl": "https://localhost:7010;http://localhost:5137",
+//      "environmentVariables": {
+//        "ASPNETCORE_ENVIRONMENT": "Development"
+//      }
+//    }
+//  }
+//}
+

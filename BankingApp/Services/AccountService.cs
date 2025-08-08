@@ -3,6 +3,7 @@ using BankingApp.Application.Interfaces.Repository;
 using BankingApp.Application.Interfaces.Services;
 using BankingApp.Core.Entities;
 using Microsoft.Extensions.Caching.Distributed;
+using Serilog;
 using StackExchange.Redis;
 using System.Text.Json;
 
@@ -26,8 +27,13 @@ namespace BankingApp.Application.Services
 
         public async Task<Guid> CreateAccountAsync(CreateAccountDto dto, CancellationToken cancellationToken)
         {
+            Log.Information("Attempting to create account for UserId: {UserId}, AccountNumber: {AccountNumber}", dto.UserId, dto.AccountNumber);
+
             if (await _accountRepository.AccountNumberExistsAsync(dto.AccountNumber, cancellationToken))
+            {
+                Log.Warning("Account creation failed: Account number {AccountNumber} already exists", dto.AccountNumber);
                 throw new Exception("Account number already exists.");
+            }
 
             var account = new Account
             {
@@ -38,7 +44,6 @@ namespace BankingApp.Application.Services
 
             var accountId = await _accountRepository.CreateAccountAsync(account, cancellationToken);
 
-            // Prepare cache DTO
             var accountDto = new AccountDto
             {
                 Id = accountId,
@@ -56,7 +61,8 @@ namespace BankingApp.Application.Services
             var serialized = JsonSerializer.Serialize(accountDto);
             await _cache.SetStringAsync(cacheKey, serialized, cacheOptions);
 
-            // Invalidate older keys if needed (e.g., if cache lists exist)
+            Log.Information("Account created and cached successfully. AccountId: {AccountId}", accountId);
+
             await InvalidateAccountCache(account.Id);
 
             return accountId;
@@ -65,16 +71,22 @@ namespace BankingApp.Application.Services
         public async Task<AccountDto?> GetAccountByIdAsync(Guid accountId, CancellationToken cancellationToken)
         {
             var cacheKey = $"account:{accountId}";
-            var cached = await _cache.GetStringAsync(cacheKey, cancellationToken);
+            Log.Information("Fetching account from cache. Key: {CacheKey}", cacheKey);
 
+            var cached = await _cache.GetStringAsync(cacheKey, cancellationToken);
             if (!string.IsNullOrEmpty(cached))
             {
+                Log.Information("Cache hit for AccountId: {AccountId}", accountId);
                 return JsonSerializer.Deserialize<AccountDto>(cached);
             }
 
+            Log.Information("Cache miss for AccountId: {AccountId}. Fetching from DB...", accountId);
             var account = await _accountRepository.GetAccountByIdAsync(accountId, cancellationToken);
             if (account == null)
+            {
+                Log.Warning("Account not found in DB. AccountId: {AccountId}", accountId);
                 return null;
+            }
 
             var accountDto = new AccountDto
             {
@@ -92,27 +104,34 @@ namespace BankingApp.Application.Services
             var json = JsonSerializer.Serialize(accountDto);
             await _cache.SetStringAsync(cacheKey, json, options, cancellationToken);
 
+            Log.Information("Account data cached after DB retrieval. AccountId: {AccountId}", accountId);
+
             return accountDto;
         }
 
         public async Task<Account?> GetAccountByNumberAsync(string accountNumber)
         {
+            Log.Information("Fetching account by AccountNumber: {AccountNumber}", accountNumber);
             return await _accountRepository.GetAccountByNumberAsync(accountNumber);
         }
 
-        // Delete old Redis keys (advanced cleanup)
         private async Task InvalidateAccountCache(Guid accountId)
         {
             var server = _redis.GetServer(_redis.GetEndPoints().First());
             var db = _redis.GetDatabase();
 
-            var pattern = $"account:{accountId}*"; // Covers exact or related keys
-
+            var pattern = $"account:{accountId}*";
             var keys = server.Keys(pattern: pattern).ToArray();
 
             foreach (var key in keys)
             {
                 await db.KeyDeleteAsync(key);
+                Log.Information("Deleted stale cache key: {Key}", key);
+            }
+
+            if (keys.Length == 0)
+            {
+                Log.Information("No stale cache keys found for AccountId: {AccountId}", accountId);
             }
         }
     }

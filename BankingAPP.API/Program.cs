@@ -36,7 +36,7 @@ try
     builder.Services.AddDbContext<BankingDbContext>(options =>
         options.UseSqlServer(configuration.GetConnectionString("DefaultConnection")));
 
-    // Redis Caching
+    // ✅ Redis Caching - Required for AccountService & TransactionService
     builder.Services.AddStackExchangeRedisCache(options =>
     {
         options.Configuration = builder.Configuration.GetConnectionString("Redis");
@@ -125,22 +125,15 @@ try
 
     var app = builder.Build();
 
-    // 🔹 Seed Roles
-    using (var scope = app.Services.CreateScope())
-    {
-        var services = scope.ServiceProvider;
-        await RoleSeeder.SeedRolesAsync(services);
-    }
+    //  Middleware
+    app.UseSwagger();
+    app.UseSwaggerUI();
 
-    // 🔹 Middleware
-    if (app.Environment.IsDevelopment())
-    {
-        app.UseSwagger();
-        app.UseSwaggerUI();
-    }
+    // Disabled HTTPS redirection for now so Swagger runs without certificate issues
+    // app.UseHttpsRedirection();
 
-    app.UseHttpsRedirection();
     app.UseRouting();
+    app.UseDeveloperExceptionPage();
 
     app.UseAuthentication();
     app.UseAuthorization();
