@@ -19,7 +19,7 @@
 
 	<ItemGroup>
 		<ProjectReference Include="..\BankingApp.Core\BankingApp.Core.csproj" />
-		<ProjectReference Include="..\BankingApp\BankingApp.Application.csproj" />
+		<ProjectReference Include="..\BankingApp\BankingApp.Application_Layer.csproj" />
 	</ItemGroup>
 
 </Project>
