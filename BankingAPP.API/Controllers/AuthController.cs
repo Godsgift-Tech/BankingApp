@@ -47,7 +47,7 @@ namespace BankingAPP.API.Controllers
 
             await _userManager.AddToRoleAsync(user, "Customer");
 
-            return Ok("User registered successfully");
+            return Ok("User registration was successful!. You can proceed to login ");
         }
 
         [HttpPost("login")]
@@ -81,6 +81,7 @@ namespace BankingAPP.API.Controllers
 
             return Ok(new
             {
+                message = $"Welcome! {user.UserName}!",
                 token = new JwtSecurityTokenHandler().WriteToken(token),
                 expiration = token.ValidTo
             });

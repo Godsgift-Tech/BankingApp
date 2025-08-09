@@ -24,17 +24,22 @@ namespace BankingAPP.API.Controllers
         {
             try
             {
-                dto.UserId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
-                Log.Information("Creating account for UserId={UserId}", dto.UserId);
+                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                if (string.IsNullOrEmpty(userId))
+                {
+                    return Unauthorized("User ID not found in token.");
+                }
 
-                var accountId = await _accountService.CreateAccountAsync(dto, cancellationToken);
+                Log.Information("Creating account for UserId={UserId}", userId);
 
-                Log.Information("Account created successfully. AccountId={AccountId}", accountId);
-                return Ok(new { AccountId = accountId });
+                var response = await _accountService.CreateAccountAsync(userId, dto, cancellationToken);
+
+                Log.Information("Account created successfully. AccountId={AccountId}", response.AccountId);
+                return Ok(response); //
             }
             catch (Exception ex)
             {
-                Log.Error(ex, "Failed to create account for UserId={UserId}", dto.UserId);
+                Log.Error(ex, "Failed to create account for User");
                 return StatusCode(500, "An error occurred while creating the account.");
             }
         }

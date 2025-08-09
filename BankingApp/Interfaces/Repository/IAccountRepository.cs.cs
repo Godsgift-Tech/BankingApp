@@ -7,13 +7,15 @@ using System.Threading.Tasks;
 
 namespace BankingApp.Application.Interfaces.Repository
 {
-    public interface IAccountRepository
-    {
-        Task<bool> AccountNumberExistsAsync(string accountNumber, CancellationToken cancellationToken);
-        Task<Guid> CreateAccountAsync(Account account, CancellationToken cancellationToken);
-        Task<Account?> GetAccountByIdAsync(Guid accountId, CancellationToken cancellationToken);
-        Task<Account?> GetAccountByNumberAsync(string accountNumber);
+   
+        public interface IAccountRepository
+        {
+            Task<Guid> CreateAccountAsync(Account account, CancellationToken cancellationToken);
+            Task<bool> AccountNumberExistsAsync(string accountNumber, CancellationToken cancellationToken);
+            Task<Account?> GetAccountByIdAsync(Guid accountId, CancellationToken cancellationToken);
+            Task<Account?> GetAccountByNumberAsync(string accountNumber, CancellationToken cancellationToken);
+        }
 
 
-    }
+    
 }

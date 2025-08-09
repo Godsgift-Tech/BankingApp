@@ -1,6 +1,4 @@
-﻿
-
-using BankingApp.Core.Enums;
+﻿using BankingApp.Core.Enums;
 
 namespace BankingApp.Core.Entities
 {
@@ -17,14 +15,12 @@ namespace BankingApp.Core.Entities
 
         public string? Description { get; set; }
 
-        // Optional: For transfers
+        // For transfer of funds to another account
         public string? TargetAccountNumber { get; set; }
 
         public TransactionStatus Status { get; set; } = TransactionStatus.Success;
+
+        //  balance after this transaction
+        public decimal BalanceAfterTransaction { get; set; }
     }
-
-
-   
-
-
 }

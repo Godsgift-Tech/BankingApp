@@ -13,8 +13,10 @@ namespace BankingApp.Application.DTO.Transactions
         public decimal Amount { get; set; }
         public string Description { get; set; } = default!;
         public DateTime Timestamp { get; set; }
-        public TransactionType Type { get; set; }
-        public TransactionStatus Status { get; set; }
+        public string Type { get; set; } = default!; 
+        public string Status { get; set; } = default!; 
         public string? TargetAccountNumber { get; set; }
+        public decimal BalanceAfterTransaction { get; set; }
     }
+
 }

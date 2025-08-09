@@ -8,11 +8,12 @@ using System.Threading.Tasks;
 
 namespace BankingApp.Application.Interfaces.Services
 {
+
     public interface IAccountService
     {
-        Task<Guid> CreateAccountAsync(CreateAccountDto dto, CancellationToken cancellationToken);
+        Task<CreateAccountResponseDto> CreateAccountAsync(string userId, CreateAccountDto dto, CancellationToken cancellationToken);
         Task<AccountDto?> GetAccountByIdAsync(Guid accountId, CancellationToken cancellationToken);
-        Task<Account?> GetAccountByNumberAsync(string accountNumber);
-
+        Task<Account?> GetAccountByNumberAsync(string accountNumber, CancellationToken cancellationToken);
     }
+
 }

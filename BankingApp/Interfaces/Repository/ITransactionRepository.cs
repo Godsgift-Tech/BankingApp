@@ -17,7 +17,13 @@ namespace BankingApp.Application.Interfaces.Repository
       DateTime? toDate,
       CancellationToken cancellationToken);
 
-
+        Task<(List<Transaction> Transactions, int TotalCount)> GetPagedTransactionsByAccountNumberAsync(
+     string accountNumber,
+     int page,
+     int pageSize,
+     DateTime? fromDate,
+     DateTime? toDate,
+     CancellationToken cancellationToken);
 
     }
 }

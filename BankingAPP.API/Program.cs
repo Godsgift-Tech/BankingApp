@@ -12,6 +12,7 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Serilog;
 using System.Text;
+using QuestPDF.Infrastructure; // ✅ Added for QuestPDF license
 
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()
@@ -28,6 +29,9 @@ try
     var builder = WebApplication.CreateBuilder(args);
     builder.Host.UseSerilog();
 
+    // ✅ Set QuestPDF license
+    QuestPDF.Settings.License = LicenseType.Community;
+
     var configuration = builder.Configuration;
     Console.WriteLine("Connection string in use: " + configuration.GetConnectionString("DefaultConnection"));
 
@@ -41,6 +45,7 @@ try
         .AddDefaultTokenProviders();
 
     // Dependency Injection
+    builder.Services.AddScoped<IUserRepository, UserRepository>();
     builder.Services.AddScoped<IAccountRepository, AccountRepository>();
     builder.Services.AddScoped<IAccountService, AccountService>();
     builder.Services.AddScoped<ITransactionRepository, TransactionRepository>();
@@ -117,6 +122,7 @@ try
     {
         var services = scope.ServiceProvider;
         await RoleSeeder.SeedRolesAsync(services);
+        await BankAdminRole.SeedAdminUserAsync(services);
     }
 
     // Middleware

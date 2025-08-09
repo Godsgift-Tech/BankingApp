@@ -22,6 +22,14 @@ namespace BankingAPP.Infrastructure.Data
                 .IsUnique();
 
             builder.Entity<Account>()
+                .Property(a => a.Currency)
+                .HasDefaultValue("NGN");
+
+            builder.Entity<Account>()
+                .Property(a => a.AccountType)
+                .IsRequired();
+
+            builder.Entity<Account>()
                 .HasOne(a => a.User)
                 .WithMany(u => u.Accounts)
                 .HasForeignKey(a => a.UserId)
@@ -34,14 +42,19 @@ namespace BankingAPP.Infrastructure.Data
                 .HasForeignKey(t => t.AccountId)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            // Optional: Enum conversion for TransactionType and Status (if using EF Core 5+)
+            // Enum conversion for TransactionType and Status 
             builder.Entity<Transaction>()
                 .Property(t => t.Type)
-                .HasConversion<string>(); // saves enum as string
+                .HasConversion<string>();
 
             builder.Entity<Transaction>()
                 .Property(t => t.Status)
-                .HasConversion<string>(); // saves enum as string
+                .HasConversion<string>();
+
+            //  BalanceAfterTransaction is required (non-nullable)
+            builder.Entity<Transaction>()
+                .Property(t => t.BalanceAfterTransaction)
+                .IsRequired();
         }
     }
 }

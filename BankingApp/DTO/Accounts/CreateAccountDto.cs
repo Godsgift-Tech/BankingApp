@@ -11,5 +11,4 @@ namespace BankingApp.Application.DTO.Accounts
         public string AccountType { get; set; } = default!;
         public string Currency { get; set; } = "NGN"; // default to Naira
     }
-
 }

@@ -2,11 +2,6 @@
 using BankingApp.Core.Entities;
 using BankingAPP.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace BankingAPP.Infrastructure.Repositories
 {
@@ -21,7 +16,8 @@ namespace BankingAPP.Infrastructure.Repositories
 
         public async Task<bool> AccountNumberExistsAsync(string accountNumber, CancellationToken cancellationToken)
         {
-            return await _context.Accounts.AnyAsync(a => a.AccountNumber == accountNumber, cancellationToken);
+            return await _context.Accounts
+                .AnyAsync(a => a.AccountNumber == accountNumber, cancellationToken);
         }
 
         public async Task<Guid> CreateAccountAsync(Account account, CancellationToken cancellationToken)
@@ -34,15 +30,15 @@ namespace BankingAPP.Infrastructure.Repositories
         public async Task<Account?> GetAccountByIdAsync(Guid accountId, CancellationToken cancellationToken)
         {
             return await _context.Accounts
-                .Include(a => a.Transactions)
+                .Include(a => a.User) // Ensures User is populated
                 .FirstOrDefaultAsync(a => a.Id == accountId, cancellationToken);
         }
 
-        public async Task<Account?> GetAccountByNumberAsync(string accountNumber)
+
+        public async Task<Account?> GetAccountByNumberAsync(string accountNumber, CancellationToken cancellationToken)
         {
-            return await _context.Accounts.FirstOrDefaultAsync(a => a.AccountNumber == accountNumber);
+            return await _context.Accounts
+                .FirstOrDefaultAsync(a => a.AccountNumber == accountNumber, cancellationToken);
         }
-
     }
-
 }
