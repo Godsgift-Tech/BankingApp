@@ -86,7 +86,7 @@ namespace BankingAPP.API.Controllers
         }
 
         [Authorize]
-        [HttpGet("account/{accountId}")]
+        [HttpGet("history/{accountId}")]
         public async Task<IActionResult> GetTransactionHistory(
             Guid accountId,
             [FromQuery] int page = 1,
@@ -157,7 +157,7 @@ namespace BankingAPP.API.Controllers
         }
 
         [Authorize(Roles = "Admin")]
-        [HttpGet("account-number/{accountNumber}")]
+        [HttpGet("accountHistory/{accountNumber}")]
         public async Task<IActionResult> GetTransactionHistoryByAccountNumber(
     string accountNumber,
     [FromQuery] int page = 1,

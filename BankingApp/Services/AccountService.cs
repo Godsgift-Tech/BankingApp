@@ -2,7 +2,9 @@
 using BankingApp.Application.Interfaces.Repository;
 using BankingApp.Application.Interfaces.Services;
 using BankingApp.Core.Entities;
+using Microsoft.Extensions.Caching.Distributed;
 using Serilog;
+using System.Text.Json;
 
 namespace BankingApp.Application.Services
 {
@@ -10,16 +12,20 @@ namespace BankingApp.Application.Services
     {
         private readonly IAccountRepository _accountRepository;
         private readonly IUserRepository _userRepository;
+        private readonly IDistributedCache _cache;
 
-        public AccountService(IAccountRepository accountRepository, IUserRepository userRepository)
+        public AccountService(
+            IAccountRepository accountRepository,
+            IUserRepository userRepository,
+            IDistributedCache cache)
         {
             _accountRepository = accountRepository;
             _userRepository = userRepository;
+            _cache = cache;
         }
 
         public async Task<CreateAccountResponseDto> CreateAccountAsync(string userId, CreateAccountDto dto, CancellationToken cancellationToken)
         {
-            // Fetch the user so we can return their name
             var user = await _userRepository.GetUserByIdAsync(userId, cancellationToken);
             if (user == null)
             {
@@ -27,7 +33,6 @@ namespace BankingApp.Application.Services
                 throw new InvalidOperationException("User does not exist");
             }
 
-            // Generate unique account number
             string accountNumber = await GenerateUniqueAccountNumberAsync(cancellationToken);
 
             Log.Information("Creating account for UserId: {UserId} with AccountNumber: {AccountNumber}", userId, accountNumber);
@@ -43,6 +48,17 @@ namespace BankingApp.Application.Services
             };
 
             var accountId = await _accountRepository.CreateAccountAsync(account, cancellationToken);
+
+            // Store account in Redis
+            await _cache.SetStringAsync(
+                $"account:{accountId}",
+                JsonSerializer.Serialize(account),
+                new DistributedCacheEntryOptions
+                {
+                    AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10)
+                },
+                cancellationToken
+            );
 
             Log.Information("Account created successfully. AccountId: {AccountId}", accountId);
 
@@ -73,15 +89,68 @@ namespace BankingApp.Application.Services
 
         public async Task<AccountDto?> GetAccountByIdAsync(Guid accountId, CancellationToken cancellationToken)
         {
-            Log.Information("Fetching account from DB. AccountId: {AccountId}", accountId);
+            // Try Redis first
+            var cachedAccount = await _cache.GetStringAsync($"account:{accountId}", cancellationToken);
+            if (!string.IsNullOrEmpty(cachedAccount))
+            {
+                Log.Information("Returning account from Redis cache. AccountId: {AccountId}", accountId);
+                var account = JsonSerializer.Deserialize<Account>(cachedAccount);
+                return MapToAccountDto(account!);
+            }
 
-            var account = await _accountRepository.GetAccountByIdAsync(accountId, cancellationToken);
-            if (account == null)
+            Log.Information("Fetching account from DB. AccountId: {AccountId}", accountId);
+            var dbAccount = await _accountRepository.GetAccountByIdAsync(accountId, cancellationToken);
+            if (dbAccount == null)
             {
                 Log.Warning("Account not found. AccountId: {AccountId}", accountId);
                 return null;
             }
 
+            // Cache the account
+            await _cache.SetStringAsync(
+                $"account:{accountId}",
+                JsonSerializer.Serialize(dbAccount),
+                new DistributedCacheEntryOptions
+                {
+                    AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10)
+                },
+                cancellationToken
+            );
+
+            return MapToAccountDto(dbAccount);
+        }
+
+        public async Task<Account?> GetAccountByNumberAsync(string accountNumber, CancellationToken cancellationToken)
+        {
+            // Try Redis first
+            var cachedAccount = await _cache.GetStringAsync($"account:number:{accountNumber}", cancellationToken);
+            if (!string.IsNullOrEmpty(cachedAccount))
+            {
+                Log.Information("Returning account from Redis cache. AccountNumber: {AccountNumber}", accountNumber);
+                return JsonSerializer.Deserialize<Account>(cachedAccount);
+            }
+
+            Log.Information("Fetching account by AccountNumber from DB: {AccountNumber}", accountNumber);
+            var dbAccount = await _accountRepository.GetAccountByNumberAsync(accountNumber, cancellationToken);
+
+            if (dbAccount != null)
+            {
+                await _cache.SetStringAsync(
+                    $"account:number:{accountNumber}",
+                    JsonSerializer.Serialize(dbAccount),
+                    new DistributedCacheEntryOptions
+                    {
+                        AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10)
+                    },
+                    cancellationToken
+                );
+            }
+
+            return dbAccount;
+        }
+
+        private AccountDto MapToAccountDto(Account account)
+        {
             return new AccountDto
             {
                 Id = account.Id,
@@ -95,12 +164,6 @@ namespace BankingApp.Application.Services
                     ? $"{account.User.FirstName} {account.User.LastName}"
                     : string.Empty
             };
-        }
-
-        public async Task<Account?> GetAccountByNumberAsync(string accountNumber, CancellationToken cancellationToken)
-        {
-            Log.Information("Fetching account by AccountNumber: {AccountNumber}", accountNumber);
-            return await _accountRepository.GetAccountByNumberAsync(accountNumber, cancellationToken);
         }
     }
 }

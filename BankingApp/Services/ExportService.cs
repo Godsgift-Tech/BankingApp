@@ -30,7 +30,7 @@ namespace BankingApp.Application.Services
                     {
                         header.Column(col =>
                         {
-                            col.Item().AlignCenter().Text(" MyBank Transaction Statement")
+                            col.Item().AlignCenter().Text("First Ally Capital Bank Transaction Statement")
                                 .FontSize(20)
                                 .SemiBold()
                                 .FontColor(Colors.Blue.Medium);

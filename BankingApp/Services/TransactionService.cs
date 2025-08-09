@@ -4,18 +4,21 @@ using BankingApp.Application.Interfaces.Repository;
 using BankingApp.Application.Interfaces.Services;
 using BankingApp.Core.Entities;
 using BankingApp.Core.Enums;
+using Microsoft.Extensions.Caching.Distributed;
 using Serilog;
-using System;
+using System.Text.Json;
 
 namespace BankingApp.Application.Services
 {
     public class TransactionService : ITransactionService
     {
         private readonly ITransactionRepository _transactionRepository;
+        private readonly IDistributedCache _cache;
 
-        public TransactionService(ITransactionRepository transactionRepository)
+        public TransactionService(ITransactionRepository transactionRepository, IDistributedCache cache)
         {
             _transactionRepository = transactionRepository;
+            _cache = cache;
         }
 
         public async Task<Transaction> DepositAsync(DepositDto dto)
@@ -24,10 +27,7 @@ namespace BankingApp.Application.Services
 
             var account = await _transactionRepository.GetAccountByIdAsync(dto.AccountId);
             if (account == null)
-            {
-                Log.Warning("Deposit failed: Account not found. AccountId={AccountId}", dto.AccountId);
                 throw new NotFoundException("Account not found");
-            }
 
             account.Balance += dto.Amount;
 
@@ -47,7 +47,8 @@ namespace BankingApp.Application.Services
             await _transactionRepository.AddTransactionAsync(transaction);
             await _transactionRepository.SaveChangesAsync();
 
-            Log.Information("Deposit successful: AccountId={AccountId}, NewBalance={Balance}", dto.AccountId, account.Balance);
+            // Invalidate cache for this account
+            await InvalidateTransactionCacheAsync(dto.AccountId, account.AccountNumber);
 
             return transaction;
         }
@@ -58,17 +59,10 @@ namespace BankingApp.Application.Services
 
             var account = await _transactionRepository.GetAccountByIdAsync(dto.AccountId);
             if (account == null)
-            {
-                Log.Warning("Withdrawal failed: Account not found. AccountId={AccountId}", dto.AccountId);
                 throw new NotFoundException("Account not found");
-            }
 
             if (account.Balance < dto.Amount)
-            {
-                Log.Warning("Withdrawal failed: Insufficient funds. AccountId={AccountId}, Balance={Balance}, AttemptedAmount={Amount}",
-                    dto.AccountId, account.Balance, dto.Amount);
                 throw new InsufficientBalanceException("Insufficient balance");
-            }
 
             account.Balance -= dto.Amount;
 
@@ -88,7 +82,8 @@ namespace BankingApp.Application.Services
             await _transactionRepository.AddTransactionAsync(transaction);
             await _transactionRepository.SaveChangesAsync();
 
-            Log.Information("Withdrawal successful: AccountId={AccountId}, NewBalance={Balance}", dto.AccountId, account.Balance);
+            // Invalidate cache
+            await InvalidateTransactionCacheAsync(dto.AccountId, account.AccountNumber);
 
             return transaction;
         }
@@ -102,18 +97,14 @@ namespace BankingApp.Application.Services
             var toAccount = await _transactionRepository.GetAccountByNumberAsync(dto.ToAccountNumber);
 
             if (fromAccount == null || toAccount == null)
-            {
-                Log.Warning("Transfer failed: One or both accounts not found. From={FromAccountId}, To={ToAccountNumber}",
-                    dto.FromAccountId, dto.ToAccountNumber);
                 throw new NotFoundException("One or both accounts not found");
-            }
+
+            // Prevent you transfering funds to same account. 
+            if (fromAccount.Id == toAccount.Id || fromAccount.AccountNumber == toAccount.AccountNumber)
+                throw new InvalidOperationException("Transfers to the same account are not allowed.");
 
             if (fromAccount.Balance < dto.Amount)
-            {
-                Log.Warning("Transfer failed: Insufficient funds. FromAccountId={FromAccountId}, Balance={Balance}, Amount={Amount}",
-                    dto.FromAccountId, fromAccount.Balance, dto.Amount);
                 throw new InsufficientBalanceException("Insufficient balance");
-            }
 
             fromAccount.Balance -= dto.Amount;
             toAccount.Balance += dto.Amount;
@@ -149,7 +140,9 @@ namespace BankingApp.Application.Services
             await _transactionRepository.AddTransactionAsync(credit);
             await _transactionRepository.SaveChangesAsync();
 
-            Log.Information("Transfer successful: From={FromAccountId}, To={ToAccountId}, Amount={Amount}", fromAccount.Id, toAccount.Id, dto.Amount);
+            // Invalidate both accounts’ cache
+            await InvalidateTransactionCacheAsync(fromAccount.Id, fromAccount.AccountNumber);
+            await InvalidateTransactionCacheAsync(toAccount.Id, toAccount.AccountNumber);
 
             return debit;
         }
@@ -157,12 +150,19 @@ namespace BankingApp.Application.Services
         public async Task<PagedResult<TransactionHistoryDto>> GetTransactionHistoryByAccountIdAsync(
             Guid accountId, int page, int pageSize, DateTime? fromDate, DateTime? toDate, CancellationToken cancellationToken)
         {
-            Log.Information("Retrieving transaction history for AccountId={AccountId}, Page={Page}", accountId, page);
+            string cacheKey = $"txn_history_id_{accountId}_p{page}_s{pageSize}_{fromDate?.Ticks}_{toDate?.Ticks}";
+
+            var cachedData = await _cache.GetStringAsync(cacheKey, cancellationToken);
+            if (!string.IsNullOrEmpty(cachedData))
+            {
+                Log.Information("Transaction history (AccountId) loaded from cache.");
+                return JsonSerializer.Deserialize<PagedResult<TransactionHistoryDto>>(cachedData)!;
+            }
 
             var (transactions, totalCount) = await _transactionRepository.GetPagedTransactionsByAccountIdAsync(
                 accountId, page, pageSize, fromDate, toDate, cancellationToken);
 
-            return new PagedResult<TransactionHistoryDto>
+            var result = new PagedResult<TransactionHistoryDto>
             {
                 Page = page,
                 PageSize = pageSize,
@@ -179,22 +179,29 @@ namespace BankingApp.Application.Services
                     BalanceAfterTransaction = Math.Round(t.BalanceAfterTransaction, 2)
                 }).ToList()
             };
+
+            await _cache.SetStringAsync(cacheKey, JsonSerializer.Serialize(result),
+                new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5) }, cancellationToken);
+
+            return result;
         }
 
         public async Task<PagedResult<TransactionHistoryDto>> GetAccountHistoryByAccountNumberAsync(
-      string accountNumber,
-      int pageNumber,
-      int pageSize,
-      DateTime? fromDate,
-      DateTime? toDate,
-      CancellationToken cancellationToken)
+            string accountNumber, int pageNumber, int pageSize, DateTime? fromDate, DateTime? toDate, CancellationToken cancellationToken)
         {
-            Log.Information("Retrieving transaction history for AccountNumber={AccountNumber}, Page={Page}", accountNumber, pageNumber);
+            string cacheKey = $"txn_history_num_{accountNumber}_p{pageNumber}_s{pageSize}_{fromDate?.Ticks}_{toDate?.Ticks}";
+
+            var cachedData = await _cache.GetStringAsync(cacheKey, cancellationToken);
+            if (!string.IsNullOrEmpty(cachedData))
+            {
+                Log.Information("Transaction history (AccountNumber) loaded from cache.");
+                return JsonSerializer.Deserialize<PagedResult<TransactionHistoryDto>>(cachedData)!;
+            }
 
             var (transactions, totalCount) = await _transactionRepository.GetPagedTransactionsByAccountNumberAsync(
                 accountNumber, pageNumber, pageSize, fromDate, toDate, cancellationToken);
 
-            return new PagedResult<TransactionHistoryDto>
+            var result = new PagedResult<TransactionHistoryDto>
             {
                 Page = pageNumber,
                 PageSize = pageSize,
@@ -211,11 +218,29 @@ namespace BankingApp.Application.Services
                     BalanceAfterTransaction = Math.Round(t.BalanceAfterTransaction, 2)
                 }).ToList()
             };
+
+            await _cache.SetStringAsync(cacheKey, JsonSerializer.Serialize(result),
+                new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5) }, cancellationToken);
+
+            return result;
         }
 
+        private async Task InvalidateTransactionCacheAsync(Guid accountId, string accountNumber)
+        {
+            try
+            {
+                // For simplicity, remove all possible keys for this account
+                await _cache.RemoveAsync($"txn_history_id_{accountId}");
+                await _cache.RemoveAsync($"txn_history_num_{accountNumber}");
+                Log.Information("Cache invalidated for AccountId={AccountId}, AccountNumber={AccountNumber}", accountId, accountNumber);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to invalidate transaction cache.");
+            }
+        }
     }
 
-    // Custom exceptions to catch errors in transaction processing
     public class InsufficientBalanceException : Exception
     {
         public InsufficientBalanceException(string message) : base(message) { }

@@ -12,7 +12,8 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Serilog;
 using System.Text;
-using QuestPDF.Infrastructure; // ✅ Added for QuestPDF license
+// For QuestPDF license
+using QuestPDF.Infrastructure; 
 
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()
@@ -29,7 +30,7 @@ try
     var builder = WebApplication.CreateBuilder(args);
     builder.Host.UseSerilog();
 
-    // ✅ Set QuestPDF license
+    //  Set QuestPDF license
     QuestPDF.Settings.License = LicenseType.Community;
 
     var configuration = builder.Configuration;
@@ -54,6 +55,29 @@ try
 
     builder.Services.AddControllers();
     builder.Services.AddEndpointsApiExplorer();
+
+    //  Redis Caching 
+    try
+    {
+        var redisConn = configuration.GetConnectionString("Redis");
+        if (!string.IsNullOrWhiteSpace(redisConn))
+        {
+            builder.Services.AddStackExchangeRedisCache(options =>
+            {
+                options.Configuration = redisConn;
+            });
+
+            Log.Information(" Redis cache configured: {RedisConnection}", redisConn);
+        }
+        else
+        {
+            Log.Warning(" Redis connection string is missing in appsettings.json, caching will be disabled.");
+        }
+    }
+    catch (Exception ex)
+    {
+        Log.Error(ex, " Failed to configure Redis. Caching will be disabled.");
+    }
 
     // Swagger + JWT Auth
     builder.Services.AddSwaggerGen(options =>
@@ -117,7 +141,7 @@ try
 
     var app = builder.Build();
 
-    // Seed roles before the app starts handling requests
+    //  Seed roles and admin user before handling requests
     using (var scope = app.Services.CreateScope())
     {
         var services = scope.ServiceProvider;
@@ -143,7 +167,7 @@ try
 
     app.MapControllers();
 
-    // Redirect root URL to Swagger without showing in Swagger docs
+    //  Redirect root URL to Swagger
     app.MapGet("/", () => Results.Redirect("/swagger")).ExcludeFromDescription();
 
     app.Run();
