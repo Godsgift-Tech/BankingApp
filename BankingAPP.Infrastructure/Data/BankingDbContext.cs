@@ -1,5 +1,5 @@
 ﻿using BankingApp.Core.Entities;
-using Microsoft.AspNetCore.Identity.EntityFrameworkCore; 
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
 namespace BankingAPP.Infrastructure.Data
@@ -16,9 +16,18 @@ namespace BankingAPP.Infrastructure.Data
         {
             base.OnModelCreating(builder);
 
+            // Account Configuration
             builder.Entity<Account>()
                 .HasIndex(a => a.AccountNumber)
                 .IsUnique();
+
+            builder.Entity<Account>()
+                .Property(a => a.Currency)
+                .HasDefaultValue("NGN");
+
+            builder.Entity<Account>()
+                .Property(a => a.AccountType)
+                .IsRequired();
 
             builder.Entity<Account>()
                 .HasOne(a => a.User)
@@ -26,11 +35,26 @@ namespace BankingAPP.Infrastructure.Data
                 .HasForeignKey(a => a.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
 
+            // Transaction Configuration
             builder.Entity<Transaction>()
                 .HasOne(t => t.Account)
                 .WithMany(a => a.Transactions)
                 .HasForeignKey(t => t.AccountId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            // Enum conversion for TransactionType and Status 
+            builder.Entity<Transaction>()
+                .Property(t => t.Type)
+                .HasConversion<string>();
+
+            builder.Entity<Transaction>()
+                .Property(t => t.Status)
+                .HasConversion<string>();
+
+            //  BalanceAfterTransaction is required (non-nullable)
+            builder.Entity<Transaction>()
+                .Property(t => t.BalanceAfterTransaction)
+                .IsRequired();
         }
     }
 }
