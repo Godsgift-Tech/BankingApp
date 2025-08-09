@@ -30,10 +30,17 @@ namespace BankingAPP.Infrastructure.Repositories
         public async Task<Account?> GetAccountByIdAsync(Guid accountId, CancellationToken cancellationToken)
         {
             return await _context.Accounts
-                .Include(a => a.User) // Ensures User is populated
+                .Include(a => a.User)              // populates user details
                 .FirstOrDefaultAsync(a => a.Id == accountId, cancellationToken);
         }
 
+        public async Task<Account?> GetAccountByIdWithTransactionsAsync(Guid accountId, CancellationToken cancellationToken)
+        {
+            return await _context.Accounts
+                .Include(a => a.User)
+                .Include(a => a.Transactions)
+                .FirstOrDefaultAsync(a => a.Id == accountId, cancellationToken);
+        }
 
         public async Task<Account?> GetAccountByNumberAsync(string accountNumber, CancellationToken cancellationToken)
         {

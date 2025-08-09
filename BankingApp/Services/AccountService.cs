@@ -1,4 +1,5 @@
 ﻿using BankingApp.Application.DTO.Accounts;
+using BankingApp.Application.DTO.Transactions;
 using BankingApp.Application.Interfaces.Repository;
 using BankingApp.Application.Interfaces.Services;
 using BankingApp.Core.Entities;
@@ -89,27 +90,54 @@ namespace BankingApp.Application.Services
 
         public async Task<AccountDto?> GetAccountByIdAsync(Guid accountId, CancellationToken cancellationToken)
         {
-            // Try Redis first
+            // Using Redis cache first
             var cachedAccount = await _cache.GetStringAsync($"account:{accountId}", cancellationToken);
             if (!string.IsNullOrEmpty(cachedAccount))
             {
                 Log.Information("Returning account from Redis cache. AccountId: {AccountId}", accountId);
-                var account = JsonSerializer.Deserialize<Account>(cachedAccount);
-                return MapToAccountDto(account!);
+                return JsonSerializer.Deserialize<AccountDto>(cachedAccount);
             }
 
+            //  Fetching from database with transaction details
             Log.Information("Fetching account from DB. AccountId: {AccountId}", accountId);
-            var dbAccount = await _accountRepository.GetAccountByIdAsync(accountId, cancellationToken);
+            var dbAccount = await _accountRepository.GetAccountByIdWithTransactionsAsync(accountId, cancellationToken);
             if (dbAccount == null)
             {
                 Log.Warning("Account not found. AccountId: {AccountId}", accountId);
                 return null;
             }
 
-            // Cache the account
+            //  Mapping entity to  DTO 
+            var accountDto = new AccountDto
+            {
+                Id = dbAccount.Id,
+                AccountNumber = dbAccount.AccountNumber,
+                Balance = dbAccount.Balance,
+                AccountType = dbAccount.AccountType,
+                Currency = dbAccount.Currency,
+                CreatedAt = dbAccount.CreatedAt,
+                UserId = dbAccount.UserId,
+                FullName = $"{dbAccount.User.FirstName} {dbAccount.User.LastName}",
+                Transactions = dbAccount.Transactions
+                    .OrderByDescending(t => t.Timestamp) //  newest first or on top
+                    .Select(t => new TransactionDto
+                    {
+                        Id = t.Id,
+                        Type = t.Type,
+                        Amount = t.Amount,
+                        Timestamp = t.Timestamp,
+                        Description = t.Description,
+                        TargetAccountNumber = t.TargetAccountNumber,
+                        Status = t.Status,
+                        BalanceAfterTransaction = t.BalanceAfterTransaction
+                    })
+                    .ToList()
+            };
+
+            //  Cache the DTO safely 
             await _cache.SetStringAsync(
                 $"account:{accountId}",
-                JsonSerializer.Serialize(dbAccount),
+                JsonSerializer.Serialize(accountDto),
                 new DistributedCacheEntryOptions
                 {
                     AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10)
@@ -117,8 +145,10 @@ namespace BankingApp.Application.Services
                 cancellationToken
             );
 
-            return MapToAccountDto(dbAccount);
+            return accountDto;
         }
+
+
 
         public async Task<Account?> GetAccountByNumberAsync(string accountNumber, CancellationToken cancellationToken)
         {

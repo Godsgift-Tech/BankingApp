@@ -1,4 +1,6 @@
-﻿namespace BankingApp.Application.DTO.Accounts
+﻿using BankingApp.Application.DTO.Transactions;
+
+namespace BankingApp.Application.DTO.Accounts
 {
     public class AccountDto
     {
@@ -12,5 +14,10 @@
         // Optional: include user details
         public string UserId { get; set; } = default!;
         public string FullName { get; set; } = default!;
+
+        // Transactions for this account
+        public List<TransactionDto> Transactions { get; set; } = new();
     }
+
+
 }
