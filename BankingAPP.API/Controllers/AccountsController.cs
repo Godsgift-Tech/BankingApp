@@ -1,72 +1,68 @@
-﻿using BankingApp.Application.DTO.Accounts;
-using BankingApp.Application.Interfaces.Services;
+﻿
+using BankingAPP.Applications.Features.Accounts.Commands.CreateAccount;
+using BankingAPP.Applications.Features.Accounts.Commands.DeleteAccount;
+using BankingAPP.Applications.Features.Accounts.Commands.UpdateAccount;
+using BankingAPP.Applications.Features.Accounts.Queries.GetAccountById;
+using BankingAPP.Applications.Features.Accounts.Queries.GetAllAcounts;
+using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Serilog;
-using System.Security.Claims;
 
 namespace BankingAPP.API.Controllers
 {
-    [Route("api/[controller]")]
     [ApiController]
-    public class AccountsController : ControllerBase
+    [Route("api/[controller]")]
+    public class AccountController : ControllerBase
     {
-        private readonly IAccountService _accountService;
+        private readonly IMediator _mediator;
 
-        public AccountsController(IAccountService accountService)
+        public AccountController(IMediator mediator)
         {
-            _accountService = accountService;
-        }
-
-        [Authorize(Roles = "Customer")]
-        [HttpPost("create")]
-        public async Task<IActionResult> CreateAccount([FromBody] CreateAccountDto dto, CancellationToken cancellationToken)
-        {
-            try
-            {
-                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-                if (string.IsNullOrEmpty(userId))
-                {
-                    return Unauthorized("User ID not found in token.");
-                }
-
-                Log.Information("Creating account for UserId={UserId}", userId);
-
-                var response = await _accountService.CreateAccountAsync(userId, dto, cancellationToken);
-
-                Log.Information("Account created successfully. AccountId={AccountId}", response.AccountId);
-                return Ok(response); //
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Failed to create account for User");
-                return StatusCode(500, "An error occurred while creating the account.");
-            }
+            _mediator = mediator;
         }
 
         [Authorize(Roles = "Customer,Admin")]
-        [HttpGet("{accountId:guid}")]
-        public async Task<IActionResult> GetAccountById(Guid accountId, CancellationToken cancellationToken)
+        [HttpGet("{id:guid}")]
+        public async Task<IActionResult> GetById(Guid id, CancellationToken cancellationToken)
         {
-            try
-            {
-                Log.Information("Fetching account details. AccountId={AccountId}", accountId);
+            var result = await _mediator.Send(new GetAccountByIdQuery(id), cancellationToken);
+            if (result == null) return NotFound();
+            return Ok(result);
+        }
 
-                var account = await _accountService.GetAccountByIdAsync(accountId, cancellationToken);
-                if (account == null)
-                {
-                    Log.Warning("Account not found. AccountId={AccountId}", accountId);
-                    return NotFound("Account not found");
-                }
+        [Authorize(Roles = "Admin")]
+        [HttpGet]
+        public async Task<IActionResult> GetAll(CancellationToken cancellationToken)
+        {
+            var result = await _mediator.Send(new GetAllAccountsQuery(), cancellationToken);
+            return Ok(result);
+        }
 
-                Log.Information("Account retrieved successfully. AccountId={AccountId}", accountId);
-                return Ok(account);
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Failed to retrieve account. AccountId={AccountId}", accountId);
-                return StatusCode(500, "An error occurred while retrieving the account.");
-            }
+        [Authorize(Roles = "Customer")]     // Ensure only logged-in users can create accounts
+        [HttpPost("create")]
+        public async Task<IActionResult> Create([FromBody] CreateAccountCommand command, CancellationToken cancellationToken)
+        {
+            var result = await _mediator.Send(command, cancellationToken);
+            return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
+        }
+
+        [Authorize(Roles = "Customer,Admin")]
+        [HttpPut("{id:guid}")]
+        public async Task<IActionResult> Update(Guid id, [FromBody] UpdateAccountCommand command, CancellationToken cancellationToken)
+        {
+            if (id != command.AccountId)
+                return BadRequest("validate the two IDs.");
+
+            var result = await _mediator.Send(command, cancellationToken);
+            return Ok(result);
+        }
+
+        [Authorize(Roles = "Admin")]
+        [HttpDelete("{id:guid}")]
+        public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
+        {
+            await _mediator.Send(new DeleteAccountCommand(id), cancellationToken);
+            return NoContent();
         }
     }
 }

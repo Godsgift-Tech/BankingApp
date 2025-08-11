@@ -1,19 +1,19 @@
-﻿using BankingApp.Application.Interfaces.Repository;
-using BankingApp.Application.Interfaces.Services;
-using BankingApp.Application.Services;
-using BankingApp.Core.Entities;
+﻿using BankingApp.Core.Entities;
 using BankingAPP.Infrastructure.Data;
 using BankingAPP.Infrastructure.Identity;
 using BankingAPP.Infrastructure.Repositories;
+using MediatR;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using QuestPDF.Infrastructure;
 using Serilog;
 using System.Text;
-// For QuestPDF license
-using QuestPDF.Infrastructure; 
+using FluentValidation;
+using BankingAPP.Applications;
+using BankingAPP.Applications.Features.Common.Interfaces;
 
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()
@@ -30,7 +30,7 @@ try
     var builder = WebApplication.CreateBuilder(args);
     builder.Host.UseSerilog();
 
-    //  Set QuestPDF license
+    // QuestPDF license
     QuestPDF.Settings.License = LicenseType.Community;
 
     var configuration = builder.Configuration;
@@ -40,6 +40,12 @@ try
     builder.Services.AddDbContext<BankingDbContext>(options =>
         options.UseSqlServer(configuration.GetConnectionString("DefaultConnection")));
 
+   
+    //  MediatR & FluentValidation
+    builder.Services.AddMediatR(typeof(AssemblyMarker).Assembly);
+    builder.Services.AddValidatorsFromAssemblyContaining(typeof(AssemblyMarker));
+
+
     // Identity
     builder.Services.AddIdentity<ApplicationUser, IdentityRole>()
         .AddEntityFrameworkStores<BankingDbContext>()
@@ -48,15 +54,15 @@ try
     // Dependency Injection
     builder.Services.AddScoped<IUserRepository, UserRepository>();
     builder.Services.AddScoped<IAccountRepository, AccountRepository>();
-    builder.Services.AddScoped<IAccountService, AccountService>();
+    //builder.Services.AddScoped<IAccountService, AccountService>();
     builder.Services.AddScoped<ITransactionRepository, TransactionRepository>();
-    builder.Services.AddScoped<ITransactionService, TransactionService>();
-    builder.Services.AddScoped<IExportService, ExportService>();
+    //builder.Services.AddScoped<ITransactionService, TransactionService>();
+    //builder.Services.AddScoped<IExportService, ExportService>();
 
     builder.Services.AddControllers();
     builder.Services.AddEndpointsApiExplorer();
 
-    //  Redis Caching 
+    // Redis Caching 
     try
     {
         var redisConn = configuration.GetConnectionString("Redis");
@@ -67,16 +73,16 @@ try
                 options.Configuration = redisConn;
             });
 
-            Log.Information(" Redis cache configured: {RedisConnection}", redisConn);
+            Log.Information("Redis cache configured: {RedisConnection}", redisConn);
         }
         else
         {
-            Log.Warning(" Redis connection string is missing in appsettings.json, caching will be disabled.");
+            Log.Warning("Redis connection string is missing in appsettings.json, caching will be disabled.");
         }
     }
     catch (Exception ex)
     {
-        Log.Error(ex, " Failed to configure Redis. Caching will be disabled.");
+        Log.Error(ex, "Failed to configure Redis. Caching will be disabled.");
     }
 
     // Swagger + JWT Auth
@@ -141,7 +147,7 @@ try
 
     var app = builder.Build();
 
-    //  Seed roles and admin user before handling requests
+    // Seed roles and admin user before handling requests
     using (var scope = app.Services.CreateScope())
     {
         var services = scope.ServiceProvider;
@@ -156,9 +162,6 @@ try
         app.UseSwaggerUI();
     }
 
-    // Optional: disable HTTPS redirection for now to avoid certificate issues
-    // app.UseHttpsRedirection();
-
     app.UseRouting();
     app.UseDeveloperExceptionPage();
 
@@ -167,7 +170,7 @@ try
 
     app.MapControllers();
 
-    //  Redirect root URL to Swagger
+    // Redirect root URL to Swagger
     app.MapGet("/", () => Results.Redirect("/swagger")).ExcludeFromDescription();
 
     app.Run();
