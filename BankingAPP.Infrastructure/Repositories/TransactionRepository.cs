@@ -1,8 +1,10 @@
 ﻿using BankingApp.Core.Entities;
 using BankingAPP.Applications.Features.Common.Interfaces;
+using BankingAPP.Applications.Features.Transactions.DTO;
 using BankingAPP.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
+using Serilog;
 using System.Text.Json;
 
 namespace BankingAPP.Infrastructure.Repositories
@@ -155,6 +157,36 @@ namespace BankingAPP.Infrastructure.Repositories
 
             await _cache.RemoveAsync($"transaction:{transaction.Id}", cancellationToken);
             await _cache.RemoveAsync($"transactions:account:{transaction.AccountId}", cancellationToken);
+        }
+
+
+        public async Task<List<TransactionHistoryDto>> GetTransactionsAsync(
+            Guid accountId,
+            DateTime? fromDate,
+            DateTime? toDate,
+            CancellationToken cancellationToken)
+        {
+            Log.Information("Fetching transactions for AccountId {AccountId}", accountId);
+
+            var query = _context.Transactions
+                .Where(t => t.AccountId == accountId);
+
+            if (fromDate.HasValue)
+                query = query.Where(t => t.Timestamp >= fromDate.Value);
+
+            if (toDate.HasValue)
+                query = query.Where(t => t.Timestamp <= toDate.Value);
+
+            return await query
+                .OrderByDescending(t => t.Timestamp)
+                .Select(t => new TransactionHistoryDto
+                {
+                    Timestamp = t.Timestamp,
+                    Description = t.Description,
+                    Amount = t.Amount,
+                    BalanceAfterTransaction = t.BalanceAfterTransaction
+                })
+                .ToListAsync(cancellationToken);
         }
 
         public async Task DeleteAsync(Transaction transaction, CancellationToken cancellationToken)

@@ -1,122 +1,85 @@
 ﻿using BankingAPP.Applications.Features.Common.Interfaces;
 using BankingAPP.Applications.Features.Transactions.DTO;
+using BankingAPP.Applications.Features.Transactions.Queries.ExportTransactions;
 using MediatR;
-using Microsoft.Extensions.Caching.Distributed;
 using Serilog;
+using StackExchange.Redis;
 using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Text;
+using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 
-namespace BankingAPP.Applications.Features.Transactions.Queries.ExportTransactions
+namespace BankingAPP.Applications.Features.Transactions.Handlers
 {
-
     public class ExportTransactionsQueryHandler
         : IRequestHandler<ExportTransactionsQuery, ExportTransactionsResultDto>
     {
         private readonly ITransactionRepository _transactionRepository;
-        private readonly IDistributedCache _cache;
+        private readonly IExportService _exportService;
+        private readonly IDatabase _redisCache;
 
         public ExportTransactionsQueryHandler(
             ITransactionRepository transactionRepository,
-            IDistributedCache cache)
+            IExportService exportService,
+            IDatabase redisCache)
         {
             _transactionRepository = transactionRepository;
-            _cache = cache;
+            _exportService = exportService;
+            _redisCache = redisCache;
         }
 
         public async Task<ExportTransactionsResultDto> Handle(ExportTransactionsQuery request, CancellationToken cancellationToken)
         {
-            string cacheKey = $"export:{request.AccountId}:{request.AccountNumber}:{request.FromDate:yyyyMMdd}:{request.ToDate:yyyyMMdd}:{request.Format}";
+            var cacheKey = $"transactions:{request.AccountId}:{request.FromDate:yyyyMMdd}:{request.ToDate:yyyyMMdd}:{request.Format}";
 
-            Log.Information("Attempting to export transactions for Account {AccountNumber} (From: {From}, To: {To}, Format: {Format})",
-                request.AccountNumber, request.FromDate, request.ToDate, request.Format);
-
-            // Check Redis cache
-            var cachedFile = await _cache.GetAsync(cacheKey, cancellationToken);
-            if (cachedFile != null && cachedFile.Length > 0)
+            // Try Redis cache first
+            var cachedData = await _redisCache.StringGetAsync(cacheKey);
+            if (!cachedData.IsNullOrEmpty)
             {
-                Log.Information("Exported transaction file for {AccountNumber} retrieved from cache", request.AccountNumber);
-                return new ExportTransactionsResultDto
-                {
-                    FileContent = cachedFile,
-                    FileName = GetFileName(request),
-                    ContentType = GetContentType(request.Format)
-                };
+                Log.Information("Cache hit for export transactions {CacheKey}", cacheKey);
+                return JsonSerializer.Deserialize<ExportTransactionsResultDto>(cachedData!)!;
             }
 
-            // Fetch transactions
-            var transactions = await _transactionRepository.GetByAccountIdAsync(request.AccountId, cancellationToken);
-
-            // Apply date filtering
-            if (request.FromDate.HasValue)
-                transactions = transactions.Where(t => t.Timestamp >= request.FromDate.Value);
-
-            if (request.ToDate.HasValue)
-                transactions = transactions.Where(t => t.Timestamp <= request.ToDate.Value);
+            // Get transactions via repository (no EF in Application Layer)
+            var transactions = await _transactionRepository.GetTransactionsAsync(
+                request.AccountId,
+                request.FromDate,
+                request.ToDate,
+                cancellationToken);
 
             if (!transactions.Any())
             {
-                Log.Warning("No transactions found for export for Account {AccountNumber}", request.AccountNumber);
-                return new ExportTransactionsResultDto();
+                Log.Warning("No transactions found for AccountId {AccountId}", request.AccountId);
+                return new ExportTransactionsResultDto
+                {
+                    FileContent = Array.Empty<byte>(),
+                    ContentType = "application/octet-stream",
+                    FileName = "NoTransactionsFound.txt"
+                };
             }
 
-            // Generate file
-            var fileContent = GenerateExportFile(transactions, request.Format);
-            var fileName = GetFileName(request);
-
-            // Cache the file
-            var cacheOptions = new DistributedCacheEntryOptions
+            // Export file
+            var (fileContent, contentType, fileName) = request.Format switch
             {
-                AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10)
+                ExportFormat.Pdf => (_exportService.ExportTransactionsToPdf(transactions), "application/pdf", "Transactions.pdf"),
+                ExportFormat.Excel => (_exportService.ExportTransactionsToExcel(transactions), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "Transactions.xlsx"),
+                _ => throw new ArgumentException("Unsupported export format")
             };
-            await _cache.SetAsync(cacheKey, fileContent, cacheOptions, cancellationToken);
 
-            Log.Information("Exported transactions for {AccountNumber} and stored in cache", request.AccountNumber);
-
-            return new ExportTransactionsResultDto
+            var result = new ExportTransactionsResultDto
             {
                 FileContent = fileContent,
-                FileName = fileName,
-                ContentType = GetContentType(request.Format)
+                ContentType = contentType,
+                FileName = fileName
             };
-        }
 
-        private byte[] GenerateExportFile(IEnumerable<TransactionHistoryDto> transactions, ExportFormat format)
-        {
-            // CSV example (Excel and PDF would need specialized libraries)
-            if (format == ExportFormat.Csv)
-            {
-                var sb = new StringBuilder();
-                sb.AppendLine("Id,Date,Type,Amount,Description,BalanceAfterTransaction,Status,TargetAccountNumber");
-                foreach (var t in transactions)
-                {
-                    sb.AppendLine($"{t.Id},{t.Timestamp:yyyy-MM-dd HH:mm:ss},{t.Type},{t.Amount},{t.Description},{t.BalanceAfterTransaction},{t.Status},{t.TargetAccountNumber}");
-                }
-                return Encoding.UTF8.GetBytes(sb.ToString());
-            }
+            // Cache result
+            await _redisCache.StringSetAsync(cacheKey, JsonSerializer.Serialize(result), TimeSpan.FromMinutes(10));
 
-            // Placeholder for Excel/PDF export
-            return Encoding.UTF8.GetBytes("Export format not implemented yet.");
-        }
+            Log.Information("Transactions export generated and cached for AccountId {AccountId}", request.AccountId);
 
-        private string GetFileName(ExportTransactionsQuery request)
-        {
-            return $"Transactions_{request.AccountNumber}_{DateTime.UtcNow:yyyyMMddHHmmss}.{request.Format.ToString().ToLower()}";
-        }
-
-        private string GetContentType(ExportFormat format)
-        {
-            return format switch
-            {
-                ExportFormat.Csv => "text/csv",
-                ExportFormat.Excel => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                ExportFormat.Pdf => "application/pdf",
-                _ => "application/octet-stream"
-            };
+            return result;
         }
     }
-
-
 }

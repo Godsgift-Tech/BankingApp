@@ -1,4 +1,5 @@
 ﻿using BankingApp.Core.Entities;
+using BankingAPP.Applications.Features.Transactions.DTO;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -21,6 +22,11 @@ namespace BankingAPP.Applications.Features.Common.Interfaces
             DateTime? fromDate,
             DateTime? toDate,
             CancellationToken cancellationToken);
+        Task<List<TransactionHistoryDto>> GetTransactionsAsync(
+           Guid accountId,
+           DateTime? fromDate,
+           DateTime? toDate,
+           CancellationToken cancellationToken);
 
         Task AddAsync(Transaction transaction, CancellationToken cancellationToken);
         Task UpdateAsync(Transaction transaction, CancellationToken cancellationToken);
