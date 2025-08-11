@@ -1,7 +1,8 @@
-﻿using BankingApp.Core.Entities;
+using BankingApp.Core.Entities;
 using BankingAPP.Applications.Features.Common.Interfaces;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using System.Reflection.Emit;
 
 namespace BankingAPP.Infrastructure.Data
 {
@@ -61,6 +62,18 @@ namespace BankingAPP.Infrastructure.Data
             builder.Entity<Transaction>()
                 .Property(t => t.BalanceAfterTransaction)
                 .IsRequired();
+            builder.Entity<Account>()
+    .Property(a => a.Balance)
+    .HasColumnType("decimal(18,2)");
+
+            builder.Entity<Transaction>()
+                .Property(t => t.Amount)
+                .HasColumnType("decimal(18,2)");
+
+            builder.Entity<Transaction>()
+                .Property(t => t.BalanceAfterTransaction)
+                .HasColumnType("decimal(18,2)");
+
         }
     }
 }

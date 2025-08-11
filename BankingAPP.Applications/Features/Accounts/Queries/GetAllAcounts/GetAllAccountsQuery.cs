@@ -1,4 +1,4 @@
-﻿using BankingAPP.Applications.Features.Accounts.DTO;
+using BankingAPP.Applications.Features.Accounts.DTO;
 using MediatR;
 using PagedList;
 using System;

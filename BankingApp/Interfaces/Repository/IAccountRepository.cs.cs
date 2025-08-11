@@ -1,4 +1,4 @@
-﻿using BankingApp.Core.Entities;
+using BankingApp.Core.Entities;
 using System;
 using System.Collections.Generic;
 using System.Linq;

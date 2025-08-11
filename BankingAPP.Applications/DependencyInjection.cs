@@ -1,23 +1,28 @@
-﻿using FluentValidation;
+using BankingAPP.Applications.Features.Common.Behaviour.BankingAPP.Applications.Common.Behaviors;
+using FluentValidation;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace BankingAPP.Applications
 {
-    public static class DependencyInjection
-    {
-        public static IServiceCollection AddApplication(this IServiceCollection services)
+    
+        public static class DependencyInjection
         {
-            services.AddMediatR(typeof(DependencyInjection).Assembly);
-            services.AddValidatorsFromAssembly(Assembly.GetExecutingAssembly());
+            public static IServiceCollection AddApplication(this IServiceCollection services)
+            {
+                // Register MediatR and all handlers in this assembly
+                services.AddMediatR(cfg =>
+                    cfg.RegisterServicesFromAssembly(Assembly.GetExecutingAssembly()));
 
-            return services;
+                // Register FluentValidation validators
+                services.AddValidatorsFromAssembly(Assembly.GetExecutingAssembly());
+
+                // Register validation pipeline behavior
+                services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
+
+                return services;
+            }
         }
-    }
+    
 }

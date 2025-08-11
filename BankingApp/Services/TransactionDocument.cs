@@ -1,4 +1,4 @@
-﻿using BankingApp.Application.DTO.Transactions;
+using BankingApp.Application.DTO.Transactions;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;

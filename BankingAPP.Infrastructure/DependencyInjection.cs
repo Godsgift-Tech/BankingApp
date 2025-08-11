@@ -1,4 +1,4 @@
-﻿using BankingApp.Core.Entities;
+using BankingApp.Core.Entities;
 using BankingAPP.Applications.Features.Common.Interfaces;
 using BankingAPP.Infrastructure.Data;
 using BankingAPP.Infrastructure.Repositories;
@@ -24,34 +24,20 @@ namespace BankingAPP.Infrastructure
             services.AddIdentity<ApplicationUser, IdentityRole>()
                 .AddEntityFrameworkStores<BankingDbContext>()
                 .AddDefaultTokenProviders();
-            //Services
+
+            // Services
             services.AddScoped<IExportService, ExportService>();
 
             // Repositories
             services.AddScoped<IUserRepository, UserRepository>();
             services.AddScoped<IAccountRepository, AccountRepository>();
             services.AddScoped<ITransactionRepository, TransactionRepository>();
-            //  services.AddScoped<IExportService, ExportService>();
-            // services.AddScoped<ITransactionRepository, TransactionRepository>();
-
-
-            services.AddSingleton<IConnectionMultiplexer>(sp =>
-            {
-                var config = ConfigurationOptions.Parse("localhost:6379", true);
-                return ConnectionMultiplexer.Connect(config);
-            });
-
-            services.AddScoped<IDatabase>(sp =>
-            {
-                var connection = sp.GetRequiredService<IConnectionMultiplexer>();
-                return connection.GetDatabase();
-            });
-
 
             // Redis (native StackExchange.Redis)
             var redisConn = configuration.GetConnectionString("Redis");
             if (!string.IsNullOrWhiteSpace(redisConn))
             {
+                // Register native Redis connection
                 services.AddSingleton<IConnectionMultiplexer>(sp =>
                     ConnectionMultiplexer.Connect(redisConn));
 
@@ -61,11 +47,19 @@ namespace BankingAPP.Infrastructure
                     return multiplexer.GetDatabase();
                 });
 
+                // Register IDistributedCache with Redis
+                services.AddStackExchangeRedisCache(options =>
+                {
+                    options.Configuration = redisConn;
+                });
+
                 Log.Information("StackExchange.Redis configured: {RedisConnection}", redisConn);
             }
             else
             {
-                Log.Warning("Redis connection string is missing, StackExchange.Redis will not be registered.");
+                // Fallback to in-memory cache
+                services.AddDistributedMemoryCache();
+                Log.Warning("Redis connection string is missing, using in-memory cache instead.");
             }
 
             return services;

@@ -1,4 +1,5 @@
-﻿using BankingApp.Core.Enums;
+using BankingApp.Core.Enums;
+using System.Text.Json.Serialization;
 
 namespace BankingApp.Core.Entities
 {
@@ -7,7 +8,8 @@ namespace BankingApp.Core.Entities
         public Guid Id { get; set; } = Guid.NewGuid();
 
         public Guid AccountId { get; set; }
-        public Account Account { get; set; } = default!;
+        [JsonIgnore]
+        public Account Account { get; set; }
 
         public TransactionType Type { get; set; }
         public decimal Amount { get; set; }

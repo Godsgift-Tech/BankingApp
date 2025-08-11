@@ -1,4 +1,4 @@
-﻿using BankingAPP.Applications.Features.Transactions.DTO;
+using BankingAPP.Applications.Features.Transactions.DTO;
 
 
 namespace BankingAPP.Applications.Features.Common.Interfaces

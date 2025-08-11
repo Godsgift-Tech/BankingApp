@@ -1,4 +1,4 @@
-﻿namespace BankingAPP.Applications.Features.Registration_OnBoarding
+namespace BankingAPP.Applications.Features.Registration_OnBoarding
 {
     public class LoginDto
     {

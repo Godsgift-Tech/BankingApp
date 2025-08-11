@@ -1,4 +1,4 @@
-﻿using FluentValidation;
+using FluentValidation;
 using System;
 
 namespace BankingAPP.Applications.Features.Transactions.Queries.ExportTransactions

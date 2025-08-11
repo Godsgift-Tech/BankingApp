@@ -1,4 +1,4 @@
-﻿namespace BankingApp.Application.DTO.Accounts
+namespace BankingApp.Application.DTO.Accounts
 {
     public class CreateAccountResponseDto
     {

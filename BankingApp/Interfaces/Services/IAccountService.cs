@@ -1,4 +1,4 @@
-﻿using BankingApp.Application.DTO.Accounts;
+using BankingApp.Application.DTO.Accounts;
 using BankingApp.Core.Entities;
 using System;
 using System.Collections.Generic;

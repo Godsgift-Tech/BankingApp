@@ -1,4 +1,4 @@
-﻿using BankingAPP.Applications;
+using BankingAPP.Applications;
 using BankingAPP.Infrastructure;
 using BankingAPP.Infrastructure.Identity;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -25,13 +25,19 @@ try
     // QuestPDF license
     QuestPDF.Settings.License = LicenseType.Community;
 
-    // Add Infrastructure and Application layers
+    // Add Infrastructure and Application layers injected
     builder.Services.AddInfrastructure(builder.Configuration);
     builder.Services.AddApplication();
 
     // Controllers & Endpoints
     builder.Services.AddControllers();
     builder.Services.AddEndpointsApiExplorer();
+
+    builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
+    });
 
     // Swagger
     builder.Services.AddSwaggerGen(options =>
