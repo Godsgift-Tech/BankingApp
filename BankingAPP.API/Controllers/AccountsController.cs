@@ -3,7 +3,6 @@ using BankingAPP.Applications.Features.Accounts.Commands.DeleteAccount;
 using BankingAPP.Applications.Features.Accounts.Commands.UpdateAccount;
 using BankingAPP.Applications.Features.Accounts.Queries.GetAccountById;
 using BankingAPP.Applications.Features.Accounts.Queries.GetAllAcounts;
-using BankingAPP.Applications.Features.Transactions.Commands.Deposit;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -38,18 +37,15 @@ namespace BankingAPP.API.Controllers
             return Ok(result);
         }
 
-        [Authorize(Roles = "Customer,Admin")]
-        [HttpPost("{accountId:guid}/deposit")]
-        public async Task<IActionResult> Deposit(Guid accountId, [FromBody] DepositCommand command, CancellationToken cancellationToken)
+        [Authorize(Roles = "Customer")]
+        [HttpPost("create")]
+        public async Task<IActionResult> Create([FromBody] CreateAccountCommand command, CancellationToken cancellationToken)
         {
-            if (!ModelState.IsValid)
-                return BadRequest(ModelState);
-
-            if (accountId != command.AccountId)
-                return BadRequest("AccountId in URL does not match AccountId in body.");
+            if (command == null)
+                return BadRequest("Account creation data is required.");
 
             var result = await _mediator.Send(command, cancellationToken);
-            return Ok(result);
+            return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
         }
 
         [Authorize(Roles = "Customer,Admin")]
@@ -57,7 +53,7 @@ namespace BankingAPP.API.Controllers
         public async Task<IActionResult> Update(Guid id, [FromBody] UpdateAccountCommand command, CancellationToken cancellationToken)
         {
             if (id != command.AccountId)
-                return BadRequest("validate the two IDs.");
+                return BadRequest("The provided ID does not match the account ID.");
 
             var result = await _mediator.Send(command, cancellationToken);
             return Ok(result);
