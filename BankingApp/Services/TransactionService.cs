@@ -1,4 +1,4 @@
-﻿using BankingApp.Application.DTO.Common;
+using BankingApp.Application.DTO.Common;
 using BankingApp.Application.DTO.Transactions;
 using BankingApp.Application.Interfaces.Repository;
 using BankingApp.Application.Interfaces.Services;
@@ -140,7 +140,7 @@ namespace BankingApp.Application.Services
             await _transactionRepository.AddTransactionAsync(credit);
             await _transactionRepository.SaveChangesAsync();
 
-            // Invalidate both accounts’ cache
+            // Invalidate both accounts� cache
             await InvalidateTransactionCacheAsync(fromAccount.Id, fromAccount.AccountNumber);
             await InvalidateTransactionCacheAsync(toAccount.Id, toAccount.AccountNumber);
 

@@ -1,4 +1,4 @@
-﻿using BankingAPP.Applications.Features.Accounts.DTO;
+using BankingAPP.Applications.Features.Accounts.DTO;
 using BankingAPP.Applications.Features.Common.Interfaces;
 using MediatR;
 using Microsoft.Extensions.Caching.Distributed;
@@ -32,7 +32,7 @@ namespace BankingAPP.Applications.Features.Accounts.Commands.UpdateAccount
 
             await _accountRepository.UpdateAsync(account, cancellationToken);
 
-            // ❌ Invalidate cache so fresh data will be loaded next time
+            // ? Invalidate cache so fresh data will be loaded next time
             string cacheKey = $"account:{account.Id}";
             await _cache.RemoveAsync(cacheKey, cancellationToken);
 

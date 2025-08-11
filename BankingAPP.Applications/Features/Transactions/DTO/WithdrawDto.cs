@@ -1,4 +1,4 @@
-﻿namespace BankingAPP.Applications.Features.Transactions.DTO
+namespace BankingAPP.Applications.Features.Transactions.DTO
 {
     public class WithdrawDto
     {

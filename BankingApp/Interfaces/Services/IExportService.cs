@@ -1,4 +1,4 @@
-﻿using BankingApp.Application.DTO.Transactions;
+using BankingApp.Application.DTO.Transactions;
 
 namespace BankingApp.Application.Interfaces.Services
 {

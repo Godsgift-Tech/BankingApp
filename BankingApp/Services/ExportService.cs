@@ -1,4 +1,4 @@
-﻿using BankingApp.Application.DTO.Transactions;
+using BankingApp.Application.DTO.Transactions;
 using BankingApp.Application.Interfaces.Services;
 using ClosedXML.Excel;
 using QuestPDF.Fluent;
@@ -95,7 +95,7 @@ namespace BankingApp.Application.Services
                     // FOOTER
                     page.Footer().AlignCenter().Text(txt =>
                     {
-                        txt.Span("© ").FontSize(9);
+                        txt.Span("� ").FontSize(9);
                         txt.Span(DateTime.Now.Year.ToString()).FontSize(9);
                         txt.Span(" MyBank - Confidential").FontSize(9).FontColor(Colors.Grey.Medium);
                     });

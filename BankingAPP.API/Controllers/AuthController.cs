@@ -1,4 +1,4 @@
-﻿using BankingApp.Core.Entities;
+using BankingApp.Core.Entities;
 using BankingAPP.Applications.Features.Registration_OnBoarding;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;

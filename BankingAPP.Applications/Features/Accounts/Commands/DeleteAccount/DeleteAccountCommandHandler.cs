@@ -1,4 +1,4 @@
-﻿using BankingAPP.Applications.Features.Common.Interfaces;
+using BankingAPP.Applications.Features.Common.Interfaces;
 using MediatR;
 using System;
 using System.Collections.Generic;

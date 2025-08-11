@@ -1,16 +1,24 @@
-﻿using BankingApp.Core.Entities;
+using BankingApp.Core.Entities;
+using BankingAPP.Applications.Features.Common.Interfaces;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using System.Reflection.Emit;
 
 namespace BankingAPP.Infrastructure.Data
 {
-    public class BankingDbContext : IdentityDbContext<ApplicationUser>
+    public class BankingDbContext
+        : IdentityDbContext<ApplicationUser>, IApplicationDbContext
     {
         public BankingDbContext(DbContextOptions<BankingDbContext> options)
             : base(options) { }
 
         public DbSet<Account> Accounts { get; set; }
         public DbSet<Transaction> Transactions { get; set; }
+
+        public async Task<int> SaveChangesAsync(CancellationToken cancellationToken)
+        {
+            return await base.SaveChangesAsync(cancellationToken);
+        }
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -51,10 +59,21 @@ namespace BankingAPP.Infrastructure.Data
                 .Property(t => t.Status)
                 .HasConversion<string>();
 
-            //  BalanceAfterTransaction is required (non-nullable)
             builder.Entity<Transaction>()
                 .Property(t => t.BalanceAfterTransaction)
                 .IsRequired();
+            builder.Entity<Account>()
+    .Property(a => a.Balance)
+    .HasColumnType("decimal(18,2)");
+
+            builder.Entity<Transaction>()
+                .Property(t => t.Amount)
+                .HasColumnType("decimal(18,2)");
+
+            builder.Entity<Transaction>()
+                .Property(t => t.BalanceAfterTransaction)
+                .HasColumnType("decimal(18,2)");
+
         }
     }
 }

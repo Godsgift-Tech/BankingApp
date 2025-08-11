@@ -1,4 +1,4 @@
-﻿using BankingApp.Core.Entities;
+using BankingApp.Core.Entities;
 
 namespace BankingApp.Application.Interfaces.Repository
 {

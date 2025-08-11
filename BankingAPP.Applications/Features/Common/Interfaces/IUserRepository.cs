@@ -1,4 +1,4 @@
-﻿using BankingApp.Core.Entities;
+using BankingApp.Core.Entities;
 
 namespace BankingAPP.Applications.Features.Common.Interfaces
 {

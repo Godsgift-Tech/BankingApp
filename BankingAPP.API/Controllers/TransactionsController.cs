@@ -1,182 +1,95 @@
-﻿using BankingApp.Application.DTO.Transactions;
-using BankingApp.Application.Interfaces.Services;
-using BankingApp.Application.Services;
-using Microsoft.AspNetCore.Authorization;
+
+
+using BankingAPP.Applications.Features.Transactions.Commands.Deposit;
+using BankingAPP.Applications.Features.Transactions.Commands.Transfer;
+using BankingAPP.Applications.Features.Transactions.Commands.Withdraw;
+using BankingAPP.Applications.Features.Transactions.Queries.ExportTransactions;
+using MediatR;
 using Microsoft.AspNetCore.Mvc;
-using QuestPDF.Infrastructure;
 
 namespace BankingAPP.API.Controllers
 {
-    [Route("api/[controller]")]
     [ApiController]
+    [Route("api/[controller]")]
     public class TransactionsController : ControllerBase
     {
-        private readonly ITransactionService _transactionService;
-        private readonly IExportService _exportService;
+        private readonly IMediator _mediator;
 
-        public TransactionsController(ITransactionService transactionService, IExportService exportService)
+        public TransactionsController(IMediator mediator)
         {
-            _transactionService = transactionService;
-            _exportService = exportService;
-
-            // For QuestPDF license
-            QuestPDF.Settings.License = LicenseType.Community;
+            _mediator = mediator;
         }
 
+        /// <summary>
+        /// Deposit funds into an account.
+        /// </summary>
         [HttpPost("deposit")]
-        public async Task<IActionResult> Deposit([FromBody] DepositDto dto, CancellationToken cancellationToken)
+        public async Task<IActionResult> Deposit([FromBody] DepositCommand command)
         {
-            try
-            {
-                var transaction = await _transactionService.DepositAsync(dto);
-                return Ok(new
-                {
-                    Message = "Deposit successful",
-                    NewBalance = transaction.BalanceAfterTransaction
-                });
-            }
-            catch (NotFoundException ex)
-            {
-                return NotFound(new { error = ex.Message });
-            }
+            if (command == null)
+                return BadRequest("Invalid request payload.");
+
+            var result = await _mediator.Send(command);
+
+            return Ok(result);
         }
 
+        /// <summary>
+        /// Withdraw funds from an account.
+        /// </summary>
         [HttpPost("withdraw")]
-        public async Task<IActionResult> Withdraw([FromBody] WithdrawDto dto, CancellationToken cancellationToken)
+        public async Task<IActionResult> Withdraw([FromBody] WithdrawCommand command)
         {
-            try
-            {
-                var transaction = await _transactionService.WithdrawAsync(dto);
-                return Ok(new
-                {
-                    Message = "Withdrawal successful",
-                    NewBalance = transaction.BalanceAfterTransaction
-                });
-            }
-            catch (NotFoundException ex)
-            {
-                return NotFound(new { error = ex.Message });
-            }
-            catch (InsufficientBalanceException ex)
-            {
-                return BadRequest(new { error = ex.Message });
-            }
+            if (command == null)
+                return BadRequest("Invalid request payload.");
+
+            var result = await _mediator.Send(command);
+
+            return Ok(result);
         }
 
+        /// <summary>
+        /// Transfer funds from one account to another.
+        /// </summary>
         [HttpPost("transfer")]
-        public async Task<IActionResult> Transfer([FromBody] TransferDto dto, CancellationToken cancellationToken)
+        public async Task<IActionResult> Transfer([FromBody] TransferCommand command)
         {
-            try
-            {
-                var transaction = await _transactionService.TransferAsync(dto);
-                return Ok(new
-                {
-                    Message = "Transfer successful",
-                    SenderBalance = transaction.BalanceAfterTransaction
-                });
-            }
-            catch (NotFoundException ex)
-            {
-                return NotFound(new { error = ex.Message });
-            }
-            catch (InsufficientBalanceException ex)
-            {
-                return BadRequest(new { error = ex.Message });
-            }
-        }
+            if (command == null)
+                return BadRequest("Invalid request payload.");
 
-        [Authorize]
-        [HttpGet("history/{accountId}")]
-        public async Task<IActionResult> GetTransactionHistory(
-            Guid accountId,
-            [FromQuery] int page = 1,
-            [FromQuery] int pageSize = 10,
-            [FromQuery] DateTime? fromDate = null,
-            [FromQuery] DateTime? toDate = null,
-            CancellationToken cancellationToken = default)
-        {
-            page = page < 1 ? 1 : page;
-            pageSize = pageSize < 1 ? 10 : pageSize;
-
-            var result = await _transactionService.GetTransactionHistoryByAccountIdAsync(
-                accountId, page, pageSize, fromDate, toDate, cancellationToken);
+            var result = await _mediator.Send(command);
 
             return Ok(result);
         }
 
-        [Authorize(Roles = "Admin")]
-        [HttpGet("export/pdf/{accountId}")]
-        public async Task<IActionResult> ExportToPdf(
-            Guid accountId,
+        /// <summary>
+        /// Export transactions for a given account and date range.
+        /// </summary>
+        [HttpGet("export")]
+        public async Task<IActionResult> ExportTransactions(
+            [FromQuery] Guid accountId,
             [FromQuery] DateTime? fromDate,
             [FromQuery] DateTime? toDate,
-            CancellationToken cancellationToken)
+            [FromQuery] ExportFormat format = ExportFormat.Pdf)
         {
-            var transactions = await _transactionService.GetTransactionHistoryByAccountIdAsync(
-                accountId,
-                pageNumber: 1,
-                pageSize: int.MaxValue,
-                fromDate,
-                toDate,
-                cancellationToken
-            );
+            var query = new ExportTransactionsQuery
+            {
+                AccountId = accountId,
+                FromDate = fromDate,
+                ToDate = toDate,
+                Format = format
+            };
 
-            if (transactions == null || !transactions.Items.Any())
-                return NotFound("No transactions found for this account.");
+            var result = await _mediator.Send(query);
 
-            var pdfFile = _exportService.ExportTransactionsToPdf(transactions.Items);
-            return File(pdfFile, "application/pdf", $"transactions_{accountId}.pdf");
+            if (result.FileContent == null || result.FileContent.Length == 0)
+            {
+                return NotFound("No transactions found for the specified criteria.");
+            }
+
+            return File(result.FileContent, result.ContentType, result.FileName);
         }
-
-        [Authorize(Roles = "Admin")]
-        [HttpGet("export/excel/{accountId}")]
-        public async Task<IActionResult> ExportToExcel(
-            Guid accountId,
-            [FromQuery] DateTime? fromDate,
-            [FromQuery] DateTime? toDate,
-            CancellationToken cancellationToken)
-        {
-            var transactions = await _transactionService.GetTransactionHistoryByAccountIdAsync(
-                accountId,
-                pageNumber: 1,
-                pageSize: int.MaxValue,
-                fromDate,
-                toDate,
-                cancellationToken
-            );
-
-            if (transactions == null || !transactions.Items.Any())
-                return NotFound("No transactions found for this account.");
-
-            var excelFile = _exportService.ExportTransactionsToExcel(transactions.Items);
-            return File(
-                excelFile,
-                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                $"transactions_{accountId}.xlsx"
-            );
-        }
-
-        [Authorize(Roles = "Admin")]
-        [HttpGet("accountHistory/{accountNumber}")]
-        public async Task<IActionResult> GetTransactionHistoryByAccountNumber(
-    string accountNumber,
-    [FromQuery] int page = 1,
-    [FromQuery] int pageSize = 10,
-    [FromQuery] DateTime? fromDate = null,
-    [FromQuery] DateTime? toDate = null,
-    CancellationToken cancellationToken = default)
-        {
-            page = page < 1 ? 1 : page;
-            pageSize = pageSize < 1 ? 10 : pageSize;
-
-            var result = await _transactionService.GetAccountHistoryByAccountNumberAsync(
-                accountNumber, page, pageSize, fromDate, toDate, cancellationToken);
-
-            if (result == null || !result.Items.Any())
-                return NotFound($"No transactions found for account number {accountNumber}.");
-
-            return Ok(result);
-        }
-
     }
+
+
 }

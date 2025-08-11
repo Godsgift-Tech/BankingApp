@@ -1,4 +1,4 @@
-﻿namespace BankingApp.Core.Entities
+namespace BankingApp.Core.Entities
 {
     public class Account
     {

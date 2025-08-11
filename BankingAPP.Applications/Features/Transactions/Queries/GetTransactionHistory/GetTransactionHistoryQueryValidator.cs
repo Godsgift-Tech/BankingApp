@@ -1,4 +1,4 @@
-﻿using FluentValidation;
+using FluentValidation;
 using Serilog;
 using System;
 using System.Collections.Generic;

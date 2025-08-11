@@ -1,9 +1,10 @@
-﻿using System;
+using BankingApp.Core.Entities;
+using BankingAPP.Applications.Features.Transactions.Queries.ExportTransactions;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using BankingApp.Core.Entities;
 
 
 namespace BankingAPP.Applications.Features.Common.Interfaces
@@ -17,4 +18,5 @@ namespace BankingAPP.Applications.Features.Common.Interfaces
         Task UpdateAsync(Account account, CancellationToken cancellationToken);
         Task DeleteAsync(Account account, CancellationToken cancellationToken);
     }
+
 }

@@ -1,4 +1,4 @@
-﻿namespace BankingAPP.Applications.Features.Transactions.Queries.ExportTransactions
+namespace BankingAPP.Applications.Features.Transactions.Queries.ExportTransactions
 {
     public class ExportTransactionsResultDto
     {
