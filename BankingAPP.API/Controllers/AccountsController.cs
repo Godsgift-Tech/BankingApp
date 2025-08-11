@@ -30,7 +30,7 @@ namespace BankingAPP.API.Controllers
         }
 
         [Authorize(Roles = "Admin")]
-        [HttpGet]
+        [HttpGet("allAccounts")]
         public async Task<IActionResult> GetAll(CancellationToken cancellationToken)
         {
             var result = await _mediator.Send(new GetAllAccountsQuery(), cancellationToken);

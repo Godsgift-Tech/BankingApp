@@ -5,6 +5,7 @@ using BankingAPP.Applications.Features.Transactions.Commands.Transfer;
 using BankingAPP.Applications.Features.Transactions.Commands.Withdraw;
 using BankingAPP.Applications.Features.Transactions.Queries.ExportTransactions;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace BankingAPP.API.Controllers
@@ -23,6 +24,8 @@ namespace BankingAPP.API.Controllers
         /// <summary>
         /// Deposit funds into an account.
         /// </summary>
+        [Authorize(Roles = "Customer,Admin")]
+        /// 
         [HttpPost("deposit")]
         public async Task<IActionResult> Deposit([FromBody] DepositCommand command)
         {
@@ -37,6 +40,8 @@ namespace BankingAPP.API.Controllers
         /// <summary>
         /// Withdraw funds from an account.
         /// </summary>
+        [Authorize(Roles = "Customer,Admin")]
+
         [HttpPost("withdraw")]
         public async Task<IActionResult> Withdraw([FromBody] WithdrawCommand command)
         {
@@ -51,6 +56,9 @@ namespace BankingAPP.API.Controllers
         /// <summary>
         /// Transfer funds from one account to another.
         /// </summary>
+        /// 
+        [Authorize(Roles = "Customer,Admin")]
+
         [HttpPost("transfer")]
         public async Task<IActionResult> Transfer([FromBody] TransferCommand command)
         {
@@ -65,7 +73,9 @@ namespace BankingAPP.API.Controllers
         /// <summary>
         /// Export transactions for a given account and date range.
         /// </summary>
-        [HttpGet("export")]
+        [Authorize(Roles = "Admin")]
+
+        [HttpGet("exportByAccountId")]
         public async Task<IActionResult> ExportTransactions(
             [FromQuery] Guid accountId,
             [FromQuery] DateTime? fromDate,
