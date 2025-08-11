@@ -1,124 +1,132 @@
-﻿using BankingApp.Application.Interfaces.Repository;
-using BankingApp.Core.Entities;
+﻿using BankingApp.Core.Entities;
+using BankingAPP.Applications.Features.Common.Interfaces;
 using BankingAPP.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Distributed;
+using System.Text.Json;
 
 namespace BankingAPP.Infrastructure.Repositories
 {
+
+
     public class TransactionRepository : ITransactionRepository
     {
         private readonly BankingDbContext _context;
+        private readonly IDistributedCache _cache;
 
-        public TransactionRepository(BankingDbContext context)
+        public TransactionRepository(BankingDbContext context, IDistributedCache cache)
         {
             _context = context;
+            _cache = cache;
         }
 
-        public async Task<Account?> GetAccountByIdAsync(Guid accountId)
+        public async Task<Transaction?> GetByIdAsync(Guid transactionId, CancellationToken cancellationToken)
         {
-            return await _context.Accounts
-                .AsTracking() // Ensures EF Core tracks changes for update
-                .FirstOrDefaultAsync(a => a.Id == accountId);
-        }
+            var cacheKey = $"transaction:{transactionId}";
+            var cachedTransaction = await _cache.GetStringAsync(cacheKey, cancellationToken);
 
-        public async Task<Account?> GetAccountByNumberAsync(string accountNumber)
-        {
-            return await _context.Accounts
-                .AsTracking()
-                .FirstOrDefaultAsync(a => a.AccountNumber == accountNumber);
-        }
-
-        public Task UpdateAccountAsync(Account account)
-        {
-            _context.Accounts.Update(account);
-            return Task.CompletedTask; // SaveChanges is handled in the service
-        }
-
-        public async Task AddTransactionAsync(Transaction transaction)
-        {
-            // Ensure timestamp is set if not already
-            if (transaction.Timestamp == default)
-                transaction.Timestamp = DateTime.UtcNow;
-
-            // ✅ Ensure BalanceAfterTransaction is explicitly set
-            transaction.BalanceAfterTransaction = Math.Round(transaction.BalanceAfterTransaction, 2);
-
-            // ✅ Mark the property as modified so EF never ignores it
-            _context.Entry(transaction).Property(t => t.BalanceAfterTransaction).IsModified = true;
-
-            await _context.Transactions.AddAsync(transaction);
-        }
-
-        public async Task SaveChangesAsync()
-        {
-            await _context.SaveChangesAsync();
-        }
-
-        public async Task<(List<Transaction> Transactions, int TotalCount)> GetPagedTransactionsByAccountIdAsync(
-            Guid accountId,
-            int page,
-            int pageSize,
-            DateTime? fromDate,
-            DateTime? toDate,
-            CancellationToken cancellationToken)
-        {
-            page = page < 1 ? 1 : page;
-            pageSize = pageSize < 1 ? 10 : pageSize;
-
-            var query = _context.Transactions
-                .Where(t => t.AccountId == accountId);
-
-            if (fromDate.HasValue)
-                query = query.Where(t => t.Timestamp >= fromDate.Value);
-
-            if (toDate.HasValue)
-                query = query.Where(t => t.Timestamp <= toDate.Value);
-
-            query = query.OrderByDescending(t => t.Timestamp);
-
-            var totalCount = await query.CountAsync(cancellationToken);
-
-            if (pageSize != int.MaxValue)
+            if (!string.IsNullOrEmpty(cachedTransaction))
             {
-                query = query
-                    .Skip((page - 1) * pageSize)
-                    .Take(pageSize);
+                return JsonSerializer.Deserialize<Transaction>(cachedTransaction);
             }
 
-            var transactions = await query.ToListAsync(cancellationToken);
+            var transaction = await _context.Transactions
+                .Include(t => t.Account)
+                .FirstOrDefaultAsync(t => t.Id == transactionId, cancellationToken);
 
-            return (transactions, totalCount);
+            if (transaction != null)
+            {
+                await _cache.SetStringAsync(
+                    cacheKey,
+                    JsonSerializer.Serialize(transaction),
+                    new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5) },
+                    cancellationToken
+                );
+            }
+
+            return transaction;
         }
 
-        public async Task<(List<Transaction> Transactions, int TotalCount)> GetPagedTransactionsByAccountNumberAsync(
-      string accountNumber,
-      int page,
-      int pageSize,
-      DateTime? fromDate,
-      DateTime? toDate,
-      CancellationToken cancellationToken)
+        public async Task<IEnumerable<Transaction>> GetByAccountIdAsync(Guid accountId, CancellationToken cancellationToken)
         {
-            var query = _context.Transactions
-                .Include(t => t.Account)
-                .Where(t => t.Account.AccountNumber == accountNumber);
+            var cacheKey = $"transactions:account:{accountId}";
+            var cachedTransactions = await _cache.GetStringAsync(cacheKey, cancellationToken);
 
-            if (fromDate.HasValue)
-                query = query.Where(t => t.Timestamp >= fromDate.Value);
+            if (!string.IsNullOrEmpty(cachedTransactions))
+            {
+                return JsonSerializer.Deserialize<IEnumerable<Transaction>>(cachedTransactions) ?? Enumerable.Empty<Transaction>();
+            }
 
-            if (toDate.HasValue)
-                query = query.Where(t => t.Timestamp <= toDate.Value);
-
-            var totalCount = await query.CountAsync(cancellationToken);
-
-            var transactions = await query
+            var transactions = await _context.Transactions
+                .Where(t => t.AccountId == accountId)
                 .OrderByDescending(t => t.Timestamp)
-                .Skip((page - 1) * pageSize)
+                .ToListAsync(cancellationToken);
+
+            await _cache.SetStringAsync(
+                cacheKey,
+                JsonSerializer.Serialize(transactions),
+                new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5) },
+                cancellationToken
+            );
+
+            return transactions;
+        }
+
+        public async Task<IEnumerable<Transaction>> GetByAccountIdPagedAsync(Guid accountId, int pageNumber, int pageSize, CancellationToken cancellationToken)
+        {
+            var cacheKey = $"transactions:account:{accountId}:page:{pageNumber}:size:{pageSize}";
+            var cachedTransactions = await _cache.GetStringAsync(cacheKey, cancellationToken);
+
+            if (!string.IsNullOrEmpty(cachedTransactions))
+            {
+                return JsonSerializer.Deserialize<IEnumerable<Transaction>>(cachedTransactions) ?? Enumerable.Empty<Transaction>();
+            }
+
+            var transactions = await _context.Transactions
+                .Where(t => t.AccountId == accountId)
+                .OrderByDescending(t => t.Timestamp)
+                .Skip((pageNumber - 1) * pageSize)
                 .Take(pageSize)
                 .ToListAsync(cancellationToken);
 
-            return (transactions, totalCount);
+            await _cache.SetStringAsync(
+                cacheKey,
+                JsonSerializer.Serialize(transactions),
+                new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5) },
+                cancellationToken
+            );
+
+            return transactions;
         }
 
+        public async Task AddAsync(Transaction transaction, CancellationToken cancellationToken)
+        {
+            await _context.Transactions.AddAsync(transaction, cancellationToken);
+            await _context.SaveChangesAsync(cancellationToken);
 
+            // Invalidate related account transaction caches
+            await _cache.RemoveAsync($"transactions:account:{transaction.AccountId}", cancellationToken);
+        }
+
+        public async Task UpdateAsync(Transaction transaction, CancellationToken cancellationToken)
+        {
+            _context.Transactions.Update(transaction);
+            await _context.SaveChangesAsync(cancellationToken);
+
+            await _cache.RemoveAsync($"transaction:{transaction.Id}", cancellationToken);
+            await _cache.RemoveAsync($"transactions:account:{transaction.AccountId}", cancellationToken);
+        }
+
+        public async Task DeleteAsync(Transaction transaction, CancellationToken cancellationToken)
+        {
+            _context.Transactions.Remove(transaction);
+            await _context.SaveChangesAsync(cancellationToken);
+
+            await _cache.RemoveAsync($"transaction:{transaction.Id}", cancellationToken);
+            await _cache.RemoveAsync($"transactions:account:{transaction.AccountId}", cancellationToken);
+        }
     }
+
+
+
 }

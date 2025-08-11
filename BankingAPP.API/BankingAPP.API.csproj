@@ -30,8 +30,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\BankingAPP.Applications\BankingAPP.Applications.csproj" />
     <ProjectReference Include="..\BankingAPP.Infrastructure\BankingAPP.Infrastructure.csproj" />
-    <ProjectReference Include="..\BankingApp\BankingApp.Application_Layer.csproj" />
   </ItemGroup>
 
 </Project>
