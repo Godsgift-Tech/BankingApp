@@ -11,9 +11,6 @@ namespace BankingAPP.Applications.Features.Accounts.Commands.CreateAccount
     {
         public CreateAccountCommandValidator()
         {
-            RuleFor(x => x.UserId)
-                .NotEmpty().WithMessage("UserId is required.");
-
             RuleFor(x => x.AccountType)
                 .NotEmpty().WithMessage("Account type is required.")
                 .Must(type => type == "Savings" || type == "Current")
@@ -24,4 +21,5 @@ namespace BankingAPP.Applications.Features.Accounts.Commands.CreateAccount
                 .Length(3).WithMessage("Currency must be a valid 3-letter code (e.g., NGN, USD).");
         }
     }
+
 }

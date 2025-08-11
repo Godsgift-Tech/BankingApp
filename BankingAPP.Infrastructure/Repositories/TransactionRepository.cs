@@ -7,8 +7,6 @@ using System.Text.Json;
 
 namespace BankingAPP.Infrastructure.Repositories
 {
-
-
     public class TransactionRepository : ITransactionRepository
     {
         private readonly BankingDbContext _context;
@@ -99,6 +97,48 @@ namespace BankingAPP.Infrastructure.Repositories
             return transactions;
         }
 
+        // New method: paged + date range filtering
+        public async Task<IEnumerable<Transaction>> GetByAccountIdPagedAsync(
+            Guid accountId,
+            int pageNumber,
+            int pageSize,
+            DateTime? fromDate,
+            DateTime? toDate,
+            CancellationToken cancellationToken)
+        {
+            var cacheKey = $"transactions:account:{accountId}:page:{pageNumber}:size:{pageSize}:from:{fromDate:yyyyMMdd}:to:{toDate:yyyyMMdd}";
+            var cachedTransactions = await _cache.GetStringAsync(cacheKey, cancellationToken);
+
+            if (!string.IsNullOrEmpty(cachedTransactions))
+            {
+                return JsonSerializer.Deserialize<IEnumerable<Transaction>>(cachedTransactions) ?? Enumerable.Empty<Transaction>();
+            }
+
+            var query = _context.Transactions.AsQueryable()
+                .Where(t => t.AccountId == accountId);
+
+            if (fromDate.HasValue)
+                query = query.Where(t => t.Timestamp >= fromDate.Value);
+
+            if (toDate.HasValue)
+                query = query.Where(t => t.Timestamp <= toDate.Value);
+
+            var transactions = await query
+                .OrderByDescending(t => t.Timestamp)
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync(cancellationToken);
+
+            await _cache.SetStringAsync(
+                cacheKey,
+                JsonSerializer.Serialize(transactions),
+                new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5) },
+                cancellationToken
+            );
+
+            return transactions;
+        }
+
         public async Task AddAsync(Transaction transaction, CancellationToken cancellationToken)
         {
             await _context.Transactions.AddAsync(transaction, cancellationToken);
@@ -126,7 +166,4 @@ namespace BankingAPP.Infrastructure.Repositories
             await _cache.RemoveAsync($"transactions:account:{transaction.AccountId}", cancellationToken);
         }
     }
-
-
-
 }
