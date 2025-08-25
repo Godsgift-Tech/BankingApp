@@ -11,8 +11,8 @@ namespace BankingAPP.Applications.Features.Transactions.Commands.Deposit
     {
         public DepositCommandValidator()
         {
-            RuleFor(x => x.AccountId)
-                .NotEmpty().WithMessage("Account ID is required.");
+            RuleFor(x => x.AccountNumber)
+                .NotEmpty().WithMessage("Account number is required.");
 
             RuleFor(x => x.Amount)
                 .GreaterThan(0).WithMessage("Deposit amount must be greater than zero.");

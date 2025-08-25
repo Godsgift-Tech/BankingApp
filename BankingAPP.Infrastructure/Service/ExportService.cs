@@ -85,7 +85,7 @@ namespace BankingAPP.Infrastructure.Service
                 }
                 table.AddCell(CreateStyledCell(t.Type, typeFont, bgColor));
 
-                // Color for amount
+                // Amount with color + currency
                 Font amountFont;
                 switch (t.Type.ToLower())
                 {
@@ -102,9 +102,9 @@ namespace BankingAPP.Infrastructure.Service
                         amountFont = normalFont;
                         break;
                 }
-                table.AddCell(CreateStyledCell(t.Amount.ToString("C"), amountFont, bgColor, Element.ALIGN_RIGHT));
 
-                table.AddCell(CreateStyledCell(t.BalanceAfterTransaction.ToString("C"), normalFont, bgColor, Element.ALIGN_RIGHT));
+                table.AddCell(CreateStyledCell(t.AmountWithCurrency, amountFont, bgColor, Element.ALIGN_RIGHT));
+                table.AddCell(CreateStyledCell(t.BalanceAfterTransactionWithCurrency, normalFont, bgColor, Element.ALIGN_RIGHT));
 
                 alternateRow = !alternateRow;
             }
@@ -162,17 +162,20 @@ namespace BankingAPP.Infrastructure.Service
                 ws.Cells[row, 1].Value = t.Timestamp.ToString("yyyy-MM-dd HH:mm:ss");
                 ws.Cells[row, 2].Value = t.Description;
                 ws.Cells[row, 3].Value = t.Type;
-                ws.Cells[row, 4].Value = t.Amount;
-                ws.Cells[row, 5].Value = t.BalanceAfterTransaction;
+                ws.Cells[row, 4].Value = t.AmountWithCurrency;  // ✅ with currency
+                ws.Cells[row, 5].Value = t.BalanceAfterTransactionWithCurrency; // ✅ with currency
 
                 using (var range = ws.Cells[row, 1, row, 5])
                 {
                     range.Style.Fill.PatternType = ExcelFillStyle.Solid;
                     range.Style.Fill.BackgroundColor.SetColor(bgColor);
                     range.Style.Border.Bottom.Style = ExcelBorderStyle.Hair;
-                    range.Style.HorizontalAlignment = ExcelHorizontalAlignment.Left;
                     range.Style.VerticalAlignment = ExcelVerticalAlignment.Center;
                 }
+
+                // Align Amount & Balance to the right
+                ws.Cells[row, 4].Style.HorizontalAlignment = ExcelHorizontalAlignment.Right;
+                ws.Cells[row, 5].Style.HorizontalAlignment = ExcelHorizontalAlignment.Right;
 
                 // Color for transaction type column
                 System.Drawing.Color typeColor;

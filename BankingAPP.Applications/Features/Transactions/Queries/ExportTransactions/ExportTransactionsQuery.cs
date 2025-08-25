@@ -9,10 +9,11 @@ namespace BankingAPP.Applications.Features.Transactions.Queries.ExportTransactio
 {
     public class ExportTransactionsQuery : IRequest<ExportTransactionsResultDto>
     {
-        public Guid AccountId { get; set; }
-        public string AccountNumber { get; set; } = string.Empty; // Added AccountNumber
-        public DateTime? FromDate { get; set; }   // optional filter
-        public DateTime? ToDate { get; set; }     // optional filter
-        public ExportFormat Format { get; set; }  // CSV, Excel, PDF
+        public Guid? AccountId { get; set; }  
+        public string? AccountNumber { get; set; }
+        public DateTime? FromDate { get; set; }
+        public DateTime? ToDate { get; set; }
+        public ExportFormat Format { get; set; } = ExportFormat.Pdf;
     }
+
 }

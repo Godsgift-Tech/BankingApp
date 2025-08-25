@@ -1,9 +1,4 @@
 using FluentValidation;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace BankingAPP.Applications.Features.Transactions.Commands.Withdraw
 {
@@ -11,8 +6,9 @@ namespace BankingAPP.Applications.Features.Transactions.Commands.Withdraw
     {
         public WithdrawCommandValidator()
         {
-            RuleFor(x => x.AccountId)
-                .NotEmpty().WithMessage("Account ID is required.");
+            RuleFor(x => x.AccountNumber)
+                .NotEmpty().WithMessage("Account number is required.")
+                .Length(10).WithMessage("Account number must be 10 digits."); // adjust if needed
 
             RuleFor(x => x.Amount)
                 .GreaterThan(0).WithMessage("Withdrawal amount must be greater than zero.");

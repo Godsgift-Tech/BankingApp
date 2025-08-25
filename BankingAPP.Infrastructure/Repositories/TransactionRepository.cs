@@ -116,5 +116,14 @@ namespace BankingAPP.Infrastructure.Repositories
             _context.Transactions.Remove(transaction);
             await _context.SaveChangesAsync(cancellationToken);
         }
+
+        public async Task<Account?> GetAccountByNumberAsync(string accountNumber, CancellationToken cancellationToken)
+        {
+            return await _context.Accounts
+                .AsNoTracking()
+                .FirstOrDefaultAsync(a => a.AccountNumber == accountNumber, cancellationToken);
+        }
+
+
     }
 }

@@ -13,7 +13,7 @@ namespace BankingAPP.Applications.Features.Common.Interfaces
         Task<Transaction?> GetByIdAsync(Guid transactionId, CancellationToken cancellationToken);
         Task<IEnumerable<Transaction>> GetByAccountIdAsync(Guid accountId, CancellationToken cancellationToken);
         Task<IEnumerable<Transaction>> GetByAccountIdPagedAsync(Guid accountId, int pageNumber, int pageSize, CancellationToken cancellationToken);
-
+        Task<Account?> GetAccountByNumberAsync(string accountNumber, CancellationToken cancellationToken);
         //  Paged + Date Range
         Task<IEnumerable<Transaction>> GetByAccountIdPagedAsync(
             Guid accountId,

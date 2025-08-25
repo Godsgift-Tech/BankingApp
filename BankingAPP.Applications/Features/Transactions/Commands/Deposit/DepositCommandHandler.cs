@@ -32,23 +32,20 @@ namespace BankingAPP.Applications.Features.Transactions.Commands.Deposit
         {
             try
             {
-                // Log incoming request
                 Log.Information("Received DepositCommand: {@DepositCommand}", request);
 
-                //  Get the account by Id
-                var account = await _accountRepository.GetByIdAsync(request.AccountId, cancellationToken);
+                // Fetch account by account number
+                var account = await _accountRepository.GetByAccountNumberAsync(request.AccountNumber, cancellationToken);
                 if (account == null)
                 {
-                    Log.Warning("Deposit failed: account {AccountId} not found", request.AccountId);
-                    throw new KeyNotFoundException($"Account with ID {request.AccountId} not found.");
+                    Log.Warning("Deposit failed: account {AccountNumber} not found", request.AccountNumber);
+                    throw new KeyNotFoundException($"Account with number {request.AccountNumber} not found.");
                 }
 
-                //  Update account balance
+                // Update balance
                 account.Balance += request.Amount;
-                Log.Information("Account {AccountId} new balance after deposit: {Balance}",
-                    account.Id, account.Balance);
 
-                //  Create transaction
+                // Create transaction
                 var transaction = new Transaction
                 {
                     AccountId = account.Id,
@@ -60,39 +57,32 @@ namespace BankingAPP.Applications.Features.Transactions.Commands.Deposit
                     Status = TransactionStatus.Success
                 };
 
-                try
-                {
-                    //  Save updates
-                    await _accountRepository.UpdateAsync(account, cancellationToken);
-                    await _transactionRepository.AddAsync(transaction, cancellationToken);
+                // Save to DB + invalidate cache
+                await _accountRepository.UpdateAsync(account, cancellationToken);
+                await _transactionRepository.AddAsync(transaction, cancellationToken);
 
-                    //  Invalidate caches
-                    var accountCacheKey = $"account:{account.Id}";
-                    var transactionsCacheKey = $"transactions:{account.Id}";
+                await _cache.RemoveAsync($"account:{account.Id}", cancellationToken);
+                await _cache.RemoveAsync($"transactions:{account.Id}", cancellationToken);
 
-                    await _cache.RemoveAsync(accountCacheKey, cancellationToken);
-                    await _cache.RemoveAsync(transactionsCacheKey, cancellationToken);
+                Log.Information("Deposit successful for account {AccountNumber}. Transaction ID: {TransactionId}",
+                    account.AccountNumber, transaction.Id);
 
-                    Log.Information("Deposit successful for account {AccountId}. Transaction ID: {TransactionId}",
-                        account.Id, transaction.Id);
-                }
-                catch (Exception dbEx)
-                {
-                    Log.Error(dbEx, "Database/cache error during deposit for account {AccountId}", account.Id);
-                    throw;
-                }
-
-                //  Returning DTO
+                // Return DTO with currency formatting
                 return new TransactionHistoryDto
                 {
                     Id = transaction.Id,
+                    AccountNumber = account.AccountNumber,
+                   // Currency = account.Currency,
+                    Currency = string.IsNullOrWhiteSpace(account.Currency) ? "NGN" : account.Currency, // fallback
                     Amount = transaction.Amount,
+                   // AmountWithCurrency = $"{account.Currency} {transaction.Amount:N2}",
                     Description = transaction.Description ?? string.Empty,
                     Timestamp = transaction.Timestamp,
                     Type = transaction.Type.ToString(),
                     Status = transaction.Status.ToString(),
                     TargetAccountNumber = transaction.TargetAccountNumber,
-                    BalanceAfterTransaction = transaction.BalanceAfterTransaction
+                    BalanceAfterTransaction = transaction.BalanceAfterTransaction,
+                   // BalanceAfterTransactionWithCurrency = $"{account.Currency} {transaction.BalanceAfterTransaction:N2}"
                 };
             }
             catch (Exception ex)
@@ -102,4 +92,5 @@ namespace BankingAPP.Applications.Features.Transactions.Commands.Deposit
             }
         }
     }
+
 }

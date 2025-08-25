@@ -22,12 +22,13 @@ namespace BankingAPP.Infrastructure.Repositories
                 .FirstOrDefaultAsync(a => a.Id == accountId, cancellationToken);
         }
 
-        public async Task<Account?> GetByIdAsync(Guid accountId, CancellationToken cancellationToken)
+        public async Task<Account?> GetByAccountNumberAsync(string accountNumber, CancellationToken cancellationToken)
         {
             return await _context.Accounts
                 .Include(a => a.User)
-                .FirstOrDefaultAsync(a => a.Id == accountId, cancellationToken);
+                .FirstOrDefaultAsync(a => a.AccountNumber == accountNumber, cancellationToken);
         }
+
 
         public async Task<IEnumerable<Account>> GetAllAsync(CancellationToken cancellationToken)
         {
@@ -60,5 +61,8 @@ namespace BankingAPP.Infrastructure.Repositories
                 .FirstOrDefaultAsync(a => a.UserId == userId && a.AccountType == accountType);
         }
 
+        public async Task<Account?> GetByIdAsync(Guid accountId, CancellationToken cancellationToken)
+        { return await _context.Accounts.Include(a => a.User).FirstOrDefaultAsync(a => a.Id == accountId, cancellationToken);
+        }
     }
 }

@@ -9,9 +9,12 @@ namespace BankingAPP.Applications.Features.Transactions.Commands.Transfer
 {
     public class TransferCommand : IRequest<bool>
     {
-        public Guid FromAccountId { get; set; }
+        // Use account numbers instead of GUIDs
+        public string FromAccountNumber { get; set; } = default!;
         public string ToAccountNumber { get; set; } = default!;
+
         public decimal Amount { get; set; }
+
         public string Description { get; set; } = "Transfer";
     }
 }

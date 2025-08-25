@@ -7,14 +7,18 @@ namespace BankingAPP.Applications.Features.Transactions.Queries.ExportTransactio
     {
         public ExportTransactionsQueryValidator()
         {
-            RuleFor(x => x.AccountId)
-                .NotEmpty()
-                .WithMessage("AccountId is required.");
+            // At least one of AccountId or AccountNumber must be provided
+            RuleFor(x => x)
+                .Must(x => (x.AccountId.HasValue && x.AccountId != Guid.Empty)
+                           || !string.IsNullOrWhiteSpace(x.AccountNumber))
+                .WithMessage("Either AccountId or AccountNumber must be provided.");
 
+            //  Ensure format is valid
             RuleFor(x => x.Format)
                 .IsInEnum()
                 .WithMessage("Invalid export format.");
 
+            // Ensure date range is valid
             RuleFor(x => x)
                 .Must(HaveValidDateRange)
                 .WithMessage("FromDate cannot be later than ToDate.");

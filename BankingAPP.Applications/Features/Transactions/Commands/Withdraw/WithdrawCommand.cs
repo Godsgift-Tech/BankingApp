@@ -10,8 +10,10 @@ namespace BankingAPP.Applications.Features.Transactions.Commands.Withdraw
 {
     public class WithdrawCommand : IRequest<TransactionHistoryDto>
     {
-        public Guid AccountId { get; set; }
+        public string AccountNumber { get; set; } = default!;
+
         public decimal Amount { get; set; }
+
         public string Description { get; set; } = "Withdrawal";
     }
 }
