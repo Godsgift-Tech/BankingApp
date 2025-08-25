@@ -12,9 +12,11 @@ namespace BankingAPP.Applications.Features.Accounts.Commands.CreateAccount
         public CreateAccountCommandValidator()
         {
             RuleFor(x => x.AccountType)
-                .NotEmpty().WithMessage("Account type is required.")
-                .Must(type => type == "Savings" || type == "Current")
-                .WithMessage("Account type must be either 'Savings' or 'Current'.");
+    .NotEmpty().WithMessage("Account type is required.")
+    .Must(type => type != null &&
+                 (type.Equals("Savings", StringComparison.OrdinalIgnoreCase) ||
+                  type.Equals("Current", StringComparison.OrdinalIgnoreCase)))
+    .WithMessage("Account type must be either 'Savings' or 'Current'.");
 
             RuleFor(x => x.Currency)
                 .NotEmpty().WithMessage("Currency is required.")

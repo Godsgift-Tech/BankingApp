@@ -1,4 +1,4 @@
-using BankingAPP.Applications.Features.Common.Behaviour.BankingAPP.Applications.Common.Behaviors;
+using BankingAPP.Applications.Features.Common.Behaviour;
 using FluentValidation;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;

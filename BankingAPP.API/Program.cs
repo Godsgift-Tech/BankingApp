@@ -116,7 +116,9 @@ try
     }
 
     app.UseRouting();
-    app.UseDeveloperExceptionPage();
+   
+
+    app.UseMiddleware<ExceptionHandlingMiddleware>();
     app.UseAuthentication();
     app.UseAuthorization();
 

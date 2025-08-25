@@ -95,15 +95,20 @@ namespace BankingAPP.Infrastructure.Repositories
                 query = query.Where(t => t.Timestamp <= toDate.Value);
 
             return await query
-                .OrderByDescending(t => t.Timestamp)
-                .Select(t => new TransactionHistoryDto
-                {
-                    Timestamp = t.Timestamp,
-                    Description = t.Description,
-                    Amount = t.Amount,
-                    BalanceAfterTransaction = t.BalanceAfterTransaction
-                })
-                .ToListAsync(cancellationToken);
+     .OrderByDescending(t => t.Timestamp)
+     .Select(t => new TransactionHistoryDto
+     {
+         Id = t.Id,
+         Timestamp = t.Timestamp,
+         Description = t.Description ?? string.Empty,
+         Amount = t.Amount,
+         Type = t.Type.ToString(), // Convert enum to string
+         Status = t.Status.ToString(), // Convert enum to string
+         TargetAccountNumber = t.TargetAccountNumber,
+         BalanceAfterTransaction = t.BalanceAfterTransaction
+     })
+     .ToListAsync(cancellationToken);
+
         }
 
         public async Task DeleteAsync(Transaction transaction, CancellationToken cancellationToken)

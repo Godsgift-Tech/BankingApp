@@ -1,10 +1,9 @@
 using BankingApp.Core.Entities;
 using BankingAPP.Applications.Features.Accounts.DTO;
+using BankingAPP.Applications.Features.Common.Exceptions;
 using BankingAPP.Applications.Features.Common.Interfaces;
 using MediatR;
 using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Caching.Distributed;
-using System.Text.Json;
 
 namespace BankingAPP.Applications.Features.Accounts.Commands.CreateAccount
 {
@@ -26,21 +25,34 @@ namespace BankingAPP.Applications.Features.Accounts.Commands.CreateAccount
 
         public async Task<AccountDto> Handle(CreateAccountCommand request, CancellationToken cancellationToken)
         {
-            var userId = _httpContextAccessor.HttpContext?.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            var userId = _httpContextAccessor.HttpContext?.User
+                .FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
             if (string.IsNullOrEmpty(userId))
                 throw new UnauthorizedAccessException("User is not authenticated.");
 
-            // 1. Check if user exists
+            //  Check if user exists
             var user = await _userRepository.GetByIdAsync(userId);
             if (user == null)
                 throw new KeyNotFoundException($"User with ID {userId} not found.");
 
-            // 2. Create account entity
+            //  Check if user already has an account of this type
+            var existingAccount = await _accountRepository.GetByUserAndTypeAsync(userId, request.AccountType);
+            if (existingAccount != null)
+                throw new ValidationException(
+     $"User already has a {request.AccountType} account and cannot create another of the same type."
+ );
+
+
+            //  Normalize account type before saving
+            var normalizedType = request.AccountType.Trim().ToLower() == "savings"
+                ? "Savings" : "Current";
+
             var account = new Account
             {
                 UserId = userId,
                 AccountNumber = GenerateAccountNumber(),
-                AccountType = request.AccountType,
+                AccountType = normalizedType,
                 Currency = request.Currency,
                 CreatedAt = DateTime.UtcNow
             };
@@ -55,7 +67,8 @@ namespace BankingAPP.Applications.Features.Accounts.Commands.CreateAccount
                 Balance = account.Balance,
                 CreatedAt = account.CreatedAt,
                 UserId = account.UserId,
-                FullName = $"{user.FirstName} {user.LastName}"
+                FullName = $"{user.FirstName} {user.LastName}",
+                AccountType = account.AccountType
             };
         }
 
@@ -64,5 +77,4 @@ namespace BankingAPP.Applications.Features.Accounts.Commands.CreateAccount
             return new Random().Next(1000000000, int.MaxValue).ToString();
         }
     }
-
 }

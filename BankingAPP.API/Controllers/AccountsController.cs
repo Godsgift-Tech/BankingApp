@@ -44,9 +44,17 @@ namespace BankingAPP.API.Controllers
             if (command == null)
                 return BadRequest("Account creation data is required.");
 
-            var result = await _mediator.Send(command, cancellationToken);
-            return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
+            try
+            {
+                var result = await _mediator.Send(command, cancellationToken);
+                return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
+            }
+            catch (BankingAPP.Applications.Features.Common.Exceptions.ValidationException ex)
+            {
+                return BadRequest(new { error = ex.Message});
+            }
         }
+
 
         [Authorize(Roles = "Customer,Admin")]
         [HttpPut("{id:guid}")]

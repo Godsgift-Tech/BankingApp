@@ -53,5 +53,12 @@ namespace BankingAPP.Infrastructure.Repositories
             _context.Accounts.Remove(account);
             await _context.SaveChangesAsync(cancellationToken);
         }
+
+        public async Task<Account?> GetByUserAndTypeAsync(string userId, string accountType)
+        {
+            return await _context.Accounts
+                .FirstOrDefaultAsync(a => a.UserId == userId && a.AccountType == accountType);
+        }
+
     }
 }
