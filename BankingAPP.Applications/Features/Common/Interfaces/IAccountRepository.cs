@@ -13,6 +13,7 @@ namespace BankingAPP.Applications.Features.Common.Interfaces
     {
         Task<Account?> GetAccountByIdWithTransactionsAsync(Guid accountId, CancellationToken cancellationToken);
         Task<Account?> GetByIdAsync(Guid accountId, CancellationToken cancellationToken);
+        Task<Account?> GetByUserAndTypeAsync(string userId, string accountType);
         Task<IEnumerable<Account>> GetAllAsync(CancellationToken cancellationToken);
         Task AddAsync(Account account, CancellationToken cancellationToken);
         Task UpdateAsync(Account account, CancellationToken cancellationToken);
